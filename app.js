@@ -23,6 +23,11 @@
     if (!Number.isFinite(value)) return "0:00";
     return `${Math.floor(value / 60)}:${String(Math.floor(value % 60)).padStart(2, "0")}`;
   };
+  const formatDuration = (value) => {
+    if (!Number.isFinite(value)) return "0:00";
+    const rounded = Math.round(value);
+    return `${Math.floor(rounded / 60)}:${String(rounded % 60).padStart(2, "0")}`;
+  };
 
   function element(tag, className, text) {
     const node = document.createElement(tag);
@@ -32,22 +37,17 @@
   }
 
   function playerTemplate() {
+    app.className = "reader-shell";
     app.innerHTML = `
       <audio id="narration" preload="metadata"></audio>
       <header class="topbar">
-        <button class="brand" id="open-chapters" aria-label="Відкрити зміст">
-          <span class="brand-mark" aria-hidden="true">L</span>
-          <span><strong>Loop</strong><small>білінгвальна історія</small></span>
+        <button class="contents-back" id="back-to-contents" aria-label="Повернутися до змісту">
+          <span class="back-arrow" aria-hidden="true">←</span>
+          <span><strong>Зміст</strong><small>усі глави</small></span>
         </button>
         <div class="chapter-position" id="chapter-position"></div>
         <button class="round-button" id="header-translation" aria-label="Перемкнути переклад">Aa</button>
       </header>
-      <div class="drawer-shade" id="drawer-shade" hidden></div>
-      <aside class="chapter-drawer" id="chapter-drawer" aria-hidden="true">
-        <button id="close-chapters" aria-label="Закрити зміст">×</button>
-        <p>Глави й порівняння моделей</p>
-        <ol id="chapter-list"></ol>
-      </aside>
       <section class="chapter-hero">
         <div class="hero-image" id="hero-image" role="img"></div>
         <div class="hero-copy">
@@ -70,6 +70,7 @@
           <div class="story-text" id="story-text"></div>
         </article>
       </section>
+      <section class="next-chapter" id="next-chapter" aria-label="Навігація між главами"></section>
       <div class="player-wrap">
         <div class="player" id="player">
           <button class="play-button" id="play-button" aria-label="Відтворити"><span class="play-icon"></span></button>
@@ -85,9 +86,6 @@
   function refs() {
     return {
       audio: document.querySelector("#narration"),
-      drawer: document.querySelector("#chapter-drawer"),
-      shade: document.querySelector("#drawer-shade"),
-      list: document.querySelector("#chapter-list"),
       card: document.querySelector("#reading-card"),
       story: document.querySelector("#story-text"),
       scenes: document.querySelector("#scene-strip"),
@@ -98,22 +96,44 @@
     };
   }
 
-  function setDrawer(open) {
-    const { drawer, shade } = refs();
-    drawer.classList.toggle("open", open);
-    drawer.setAttribute("aria-hidden", String(!open));
-    shade.hidden = !open;
-  }
+  function showContents(updateHistory = true) {
+    refs().audio?.pause();
+    document.title = "Зміст · Loop";
+    app.className = "reader-shell contents-view";
+    app.innerHTML = `
+      <header class="contents-header">
+        <div class="contents-brand">
+          <span class="brand-mark" aria-hidden="true">L</span>
+          <span><strong>Loop</strong><small>словенська з перекладом і озвученням</small></span>
+        </div>
+      </header>
+      <main class="contents-main">
+        <ol class="contents-list" id="contents-list"></ol>
+      </main>`;
 
-  function renderChapterList() {
-    const { list } = refs();
-    list.replaceChildren();
+    const list = document.querySelector("#contents-list");
     state.chapters.forEach((item) => {
-      const li = element("li", item.slug === state.chapter?.slug ? "selected" : "");
-      li.append(element("span", "", two(item.number)), document.createTextNode(item.title));
-      li.addEventListener("click", () => loadChapter(item.slug, true));
-      list.append(li);
+      const row = element("li", "contents-item");
+      const button = element("button", "contents-link");
+      const image = element("img", "contents-cover");
+      image.src = relative(item.scenes[0].image);
+      image.alt = "";
+      const copy = element("span", "contents-copy");
+      copy.append(element("strong", "", item.title), element("small", "", item.titleUa));
+      button.append(
+        element("span", "contents-number", two(item.position || item.number)),
+        image,
+        copy,
+        element("time", "contents-duration", formatDuration(item.duration))
+      );
+      button.addEventListener("click", () => loadChapter(item.slug, true));
+      row.append(button);
+      list.append(row);
     });
+
+    if (updateHistory) history.pushState(null, "", "#contents");
+    document.onkeydown = null;
+    window.scrollTo({ top: 0, behavior: updateHistory ? "smooth" : "auto" });
   }
 
   function renderScenes() {
@@ -162,6 +182,39 @@
     });
   }
 
+  function renderNextChapter() {
+    const container = document.querySelector("#next-chapter");
+    const currentIndex = state.chapters.findIndex((item) => item.slug === state.chapter.slug);
+    const next = state.chapters[currentIndex + 1];
+    container.replaceChildren();
+
+    if (!next) {
+      const finish = element("button", "next-chapter-card finished");
+      finish.append(
+        element("span", "next-kicker", "Усі глави прочитано"),
+        element("strong", "", "Повернутися до змісту"),
+        element("span", "next-arrow", "→")
+      );
+      finish.addEventListener("click", () => showContents(true));
+      container.append(finish);
+      return;
+    }
+
+    const button = element("button", "next-chapter-card");
+    const image = element("img");
+    image.src = relative(next.scenes[0].image);
+    image.alt = "";
+    const copy = element("span", "next-copy");
+    copy.append(
+      element("span", "next-kicker", `Наступна глава · ${two(next.position || next.number)}`),
+      element("strong", "", next.title),
+      element("small", "", next.titleUa)
+    );
+    button.append(image, copy, element("time", "", formatDuration(next.duration)), element("span", "next-arrow", "→"));
+    button.addEventListener("click", () => loadChapter(next.slug, true));
+    container.append(button);
+  }
+
   function renderChapter() {
     const chapter = state.chapter;
     const position = chapter.position || chapter.number;
@@ -196,10 +249,13 @@
     state.activeSegment = -1;
     state.activeWord = null;
     state.activeScene = -1;
+    refs().card.classList.toggle("translation-off", !state.translation);
+    document.querySelector("#translation-toggle").classList.toggle("active", state.translation);
+    document.querySelector("#autoscroll-toggle").classList.toggle("active", state.autoScroll);
 
-    renderChapterList();
     renderScenes();
     renderStory();
+    renderNextChapter();
     updateAt(0);
   }
 
@@ -210,12 +266,15 @@
   async function loadChapter(slug, userInitiated = false) {
     try {
       refs().audio?.pause();
-      setDrawer(false);
+      if (!document.querySelector("#narration")) {
+        playerTemplate();
+        bindEvents();
+      }
       const response = await fetch(`data/${slug}.json`);
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
       state.chapter = await response.json();
       renderChapter();
-      history.replaceState(null, "", `#${slug}`);
+      if (userInitiated) history.pushState(null, "", `#${slug}`);
       localStorage.setItem("loop-reader:last-chapter", slug);
       if (userInitiated) window.scrollTo({ top: 0, behavior: "smooth" });
     } catch (error) {
@@ -290,9 +349,7 @@
 
   function bindEvents() {
     const { audio, play, player, seek } = refs();
-    document.querySelector("#open-chapters").addEventListener("click", () => setDrawer(true));
-    document.querySelector("#close-chapters").addEventListener("click", () => setDrawer(false));
-    document.querySelector("#drawer-shade").addEventListener("click", () => setDrawer(false));
+    document.querySelector("#back-to-contents").addEventListener("click", () => showContents(true));
     document.querySelector("#header-translation").addEventListener("click", toggleTranslation);
     document.querySelector("#translation-toggle").addEventListener("click", toggleTranslation);
     document.querySelector("#autoscroll-toggle").addEventListener("click", (event) => {
@@ -322,13 +379,12 @@
       if (Number.isFinite(saved) && saved > 5 && saved < audio.duration - 5) audio.currentTime = saved;
       updateAt(audio.currentTime);
     });
-    document.addEventListener("keydown", (event) => {
-      if (event.key === "Escape") setDrawer(false);
+    document.onkeydown = (event) => {
       if (event.code === "Space" && !["INPUT", "BUTTON"].includes(document.activeElement?.tagName)) {
         event.preventDefault();
         audio.paused ? audio.play().catch(() => {}) : audio.pause();
       }
-    });
+    };
   }
 
   function showError(message, error) {
@@ -341,14 +397,16 @@
       const response = await fetch("data/chapters.json");
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
       state.chapters = await response.json();
-      playerTemplate();
-      bindEvents();
       const hash = location.hash.slice(1);
-      const remembered = localStorage.getItem("loop-reader:last-chapter");
-      const initial = state.chapters.find((item) => item.slug === hash)?.slug
-        || state.chapters.find((item) => item.slug === remembered)?.slug
-        || state.chapters[0].slug;
-      await loadChapter(initial);
+      const initial = state.chapters.find((item) => item.slug === hash)?.slug;
+      if (initial) await loadChapter(initial);
+      else showContents(false);
+
+      window.addEventListener("popstate", () => {
+        const target = state.chapters.find((item) => item.slug === location.hash.slice(1));
+        if (target) loadChapter(target.slug, false);
+        else showContents(false);
+      });
     } catch (error) {
       showError("Не вдалося завантажити дані плеєра. Спробуйте оновити сторінку.", error);
     }
