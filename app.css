@@ -86,6 +86,18 @@ button { color: inherit; }
 .chapter-position { display: flex; align-items: center; gap: 12px; color: var(--forest-soft); font-size: 11px; font-weight: 700; letter-spacing: .12em; }
 .chapter-position i { display: block; width: 68px; height: 2px; }
 .round-button { justify-self: end; width: 42px; height: 42px; border: 1px solid rgba(23, 63, 58, .16); border-radius: 50%; background: rgba(255, 253, 248, .7); color: var(--forest); font: 700 13px Georgia, serif; cursor: pointer; }
+.round-button.active { border-color: var(--apricot); background: var(--paper); box-shadow: 0 7px 20px rgba(53, 73, 66, .12); }
+.font-tools { position: relative; justify-self: end; }
+.font-settings { position: absolute; z-index: 15; top: 52px; right: 0; width: 286px; padding: 18px; border: 1px solid rgba(23, 63, 58, .12); border-radius: 20px; background: rgba(255, 253, 248, .98); box-shadow: 0 18px 48px rgba(20, 58, 53, .18); }
+.font-settings[hidden] { display: none; }
+.font-settings p { margin: 0 0 13px; color: var(--forest-soft); font-size: 10px; font-weight: 800; letter-spacing: .13em; text-transform: uppercase; }
+.font-settings > div { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.font-settings button { min-width: 0; height: 76px; padding: 8px 5px; display: grid; place-content: center; justify-items: center; gap: 5px; border: 1px solid rgba(23, 63, 58, .1); border-radius: 14px; background: white; color: var(--forest-soft); cursor: pointer; }
+.font-settings button:nth-child(1) span { font-size: 16px; }
+.font-settings button:nth-child(2) span { font-size: 21px; }
+.font-settings button:nth-child(3) span { font-size: 27px; }
+.font-settings button small { color: var(--muted); font-size: 9px; }
+.font-settings button.active { border-color: var(--apricot); background: rgba(236, 125, 93, .09); color: var(--apricot); box-shadow: inset 0 0 0 1px var(--apricot); }
 
 .drawer-shade { position: fixed; inset: 0; z-index: 19; background: rgba(17, 46, 42, .25); backdrop-filter: blur(2px); }
 .chapter-drawer { position: fixed; inset: 0 auto 0 0; z-index: 20; width: min(390px, 92vw); padding: 42px; color: white; background: var(--forest); box-shadow: 25px 0 80px rgba(23, 63, 58, .28); transform: translateX(-105%); transition: transform .25s ease; }
@@ -136,7 +148,10 @@ button { color: inherit; }
 .scene img { width: 100%; height: 100%; object-fit: cover; }
 .scene span { position: absolute; right: 6px; bottom: 5px; display: grid; place-items: center; width: 21px; height: 21px; border-radius: 50%; background: rgba(23, 63, 58, .86); color: white; font-size: 8px; font-weight: 800; }
 
-.reading-card { min-width: 0; overflow: hidden; border: 1px solid rgba(23, 63, 58, .08); border-radius: 28px; background: rgba(255, 253, 248, .92); box-shadow: 0 12px 42px rgba(53, 73, 66, .08); }
+.reading-card { --reader-font-size: clamp(23px, 2.2vw, 30px); min-width: 0; overflow: hidden; border: 1px solid rgba(23, 63, 58, .08); border-radius: 28px; background: rgba(255, 253, 248, .92); box-shadow: 0 12px 42px rgba(53, 73, 66, .08); }
+.reading-card.font-small { --reader-font-size: clamp(20px, 1.9vw, 26px); }
+.reading-card.font-medium { --reader-font-size: clamp(23px, 2.2vw, 30px); }
+.reading-card.font-large { --reader-font-size: clamp(27px, 2.65vw, 36px); }
 .reading-toolbar { height: 68px; padding: 0 30px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid rgba(23, 63, 58, .08); }
 .reading-toolbar p { display: flex; align-items: center; gap: 9px; margin: 0; color: var(--forest-soft); font-size: 11px; font-weight: 800; letter-spacing: .12em; text-transform: uppercase; }
 .live-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--apricot); box-shadow: 0 0 0 5px var(--apricot-light); }
@@ -151,11 +166,11 @@ button { color: inherit; }
 .story-text { padding: 30px 38px 90px; }
 .text-segment { position: relative; margin: 0 -16px; padding: 12px 16px; border-left: 3px solid transparent; border-radius: 0 14px 14px 0; cursor: pointer; transition: background .2s ease, border-color .2s ease; scroll-margin: 28vh; }
 .text-segment.active { border-left-color: var(--apricot); background: linear-gradient(90deg, rgba(236, 125, 93, .09), transparent 76%); }
-.slovene { margin: 0; font: 400 clamp(23px, 2.2vw, 30px)/1.55 Georgia, "Times New Roman", serif; letter-spacing: -.018em; }
+.slovene { margin: 0; font-family: Georgia, "Times New Roman", serif; font-size: var(--reader-font-size); font-weight: 400; line-height: 1.55; letter-spacing: -.018em; }
 .word { display: inline; margin: 0 .28em 0 0; padding: 2px 0 3px; border: 0; border-radius: 0; background: transparent; color: var(--ink); font: inherit; font-weight: 400; cursor: pointer; transition: color .12s, text-decoration-color .12s; }
 .word:hover { color: var(--apricot); }
 .word.now { color: #d65f3f; background: transparent; font-weight: 400; text-decoration-line: underline; text-decoration-thickness: 3px; text-underline-offset: 4px; text-decoration-color: var(--gold); }
-.ukrainian { margin: 4px 0 0; color: #64848a; font-size: 14px; line-height: 1.55; }
+.ukrainian { margin: 8px 0 0; color: #64848a; font-family: Georgia, "Times New Roman", serif; font-size: var(--reader-font-size); font-weight: 400; line-height: 1.55; letter-spacing: -.018em; }
 .translation-off .ukrainian { display: none; }
 
 .next-chapter { width: min(1060px, calc(100% - 48px)); margin: 32px auto 42px; padding-left: 120px; }
@@ -219,8 +234,12 @@ button { color: inherit; }
   .reading-toolbar p { font-size: 9px; }
   .story-text { padding: 24px 22px 70px; }
   .text-segment { margin-inline: -9px; padding: 10px; }
-  .slovene { font-size: 24px; line-height: 1.48; }
-  .ukrainian { font-size: 13px; }
+  .reading-card { --reader-font-size: 24px; }
+  .reading-card.font-small { --reader-font-size: 20px; }
+  .reading-card.font-medium { --reader-font-size: 24px; }
+  .reading-card.font-large { --reader-font-size: 29px; }
+  .slovene, .ukrainian { line-height: 1.48; }
+  .font-settings { position: fixed; top: 64px; right: 14px; left: 14px; width: auto; }
   .next-chapter { width: calc(100% - 24px); margin-top: 22px; padding-left: 0; }
   .next-chapter-card { min-height: 104px; padding: 12px; grid-template-columns: 78px minmax(0, 1fr) 30px; gap: 13px; border-radius: 22px; }
   .next-chapter-card img { width: 78px; height: 78px; border-radius: 14px; }

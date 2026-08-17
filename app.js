@@ -8,6 +8,7 @@
     chapter: null,
     translation: true,
     autoScroll: true,
+    fontSize: "medium",
     speed: 1,
     activeSegment: -1,
     activeWord: null,
@@ -46,7 +47,17 @@
           <span><strong>Зміст</strong><small>усі глави</small></span>
         </button>
         <div class="chapter-position" id="chapter-position"></div>
-        <button class="round-button" id="header-translation" aria-label="Перемкнути переклад">Aa</button>
+        <div class="font-tools">
+          <button class="round-button" id="font-settings-button" aria-label="Налаштувати розмір тексту" aria-expanded="false">Aa</button>
+          <div class="font-settings" id="font-settings" hidden>
+            <p>Розмір тексту</p>
+            <div>
+              <button data-font-size="small"><span>А</span><small>Малий</small></button>
+              <button data-font-size="medium"><span>А</span><small>Звичайний</small></button>
+              <button data-font-size="large"><span>А</span><small>Великий</small></button>
+            </div>
+          </div>
+        </div>
       </header>
       <section class="chapter-hero">
         <div class="hero-image" id="hero-image" role="img"></div>
@@ -133,7 +144,20 @@
 
     if (updateHistory) history.pushState(null, "", "#contents");
     document.onkeydown = null;
+    document.onclick = null;
     window.scrollTo({ top: 0, behavior: updateHistory ? "smooth" : "auto" });
+  }
+
+  function applyFontSize(size, persist = false) {
+    const allowed = ["small", "medium", "large"];
+    state.fontSize = allowed.includes(size) ? size : "medium";
+    const card = refs().card;
+    card.classList.remove("font-small", "font-medium", "font-large");
+    card.classList.add(`font-${state.fontSize}`);
+    document.querySelectorAll("[data-font-size]").forEach((button) => {
+      button.classList.toggle("active", button.dataset.fontSize === state.fontSize);
+    });
+    if (persist) localStorage.setItem("loop-reader:font-size", state.fontSize);
   }
 
   function renderScenes() {
@@ -252,6 +276,7 @@
     refs().card.classList.toggle("translation-off", !state.translation);
     document.querySelector("#translation-toggle").classList.toggle("active", state.translation);
     document.querySelector("#autoscroll-toggle").classList.toggle("active", state.autoScroll);
+    applyFontSize(state.fontSize);
 
     renderScenes();
     renderStory();
@@ -350,7 +375,29 @@
   function bindEvents() {
     const { audio, play, player, seek } = refs();
     document.querySelector("#back-to-contents").addEventListener("click", () => showContents(true));
-    document.querySelector("#header-translation").addEventListener("click", toggleTranslation);
+    const fontButton = document.querySelector("#font-settings-button");
+    const fontSettings = document.querySelector("#font-settings");
+    fontButton.addEventListener("click", (event) => {
+      event.stopPropagation();
+      fontSettings.hidden = !fontSettings.hidden;
+      fontButton.classList.toggle("active", !fontSettings.hidden);
+      fontButton.setAttribute("aria-expanded", String(!fontSettings.hidden));
+    });
+    fontSettings.querySelectorAll("[data-font-size]").forEach((button) => {
+      button.addEventListener("click", () => {
+        applyFontSize(button.dataset.fontSize, true);
+        fontSettings.hidden = true;
+        fontButton.classList.remove("active");
+        fontButton.setAttribute("aria-expanded", "false");
+      });
+    });
+    document.onclick = (event) => {
+      if (!event.target.closest(".font-tools")) {
+        fontSettings.hidden = true;
+        fontButton.classList.remove("active");
+        fontButton.setAttribute("aria-expanded", "false");
+      }
+    };
     document.querySelector("#translation-toggle").addEventListener("click", toggleTranslation);
     document.querySelector("#autoscroll-toggle").addEventListener("click", (event) => {
       state.autoScroll = !state.autoScroll;
@@ -380,6 +427,11 @@
       updateAt(audio.currentTime);
     });
     document.onkeydown = (event) => {
+      if (event.key === "Escape") {
+        fontSettings.hidden = true;
+        fontButton.classList.remove("active");
+        fontButton.setAttribute("aria-expanded", "false");
+      }
       if (event.code === "Space" && !["INPUT", "BUTTON"].includes(document.activeElement?.tagName)) {
         event.preventDefault();
         audio.paused ? audio.play().catch(() => {}) : audio.pause();
@@ -397,6 +449,8 @@
       const response = await fetch("data/chapters.json");
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
       state.chapters = await response.json();
+      const savedFontSize = localStorage.getItem("loop-reader:font-size");
+      if (["small", "medium", "large"].includes(savedFontSize)) state.fontSize = savedFontSize;
       const hash = location.hash.slice(1);
       const initial = state.chapters.find((item) => item.slug === hash)?.slug;
       if (initial) await loadChapter(initial);
