@@ -132,6 +132,7 @@ button { color: inherit; }
 .contents-cover { width: 106px; height: 106px; object-fit: cover; border: 1px solid rgba(23, 63, 58, .12); border-radius: 18px; box-shadow: 0 7px 18px rgba(53, 73, 66, .1); }
 .contents-copy { min-width: 0; }
 .contents-copy strong { display: block; overflow: hidden; color: #282d2b; font: 500 27px/1.15 Georgia, serif; letter-spacing: -.025em; text-overflow: ellipsis; white-space: nowrap; }
+.contents-model { display: inline-flex; margin-top: 8px; padding: 4px 9px; border: 1px solid rgba(185, 109, 69, .24); border-radius: 999px; background: rgba(236, 125, 93, .09); color: #a75e3c; font-size: 10px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; }
 .contents-copy small { display: block; margin-top: 9px; overflow: hidden; color: #91877f; font-size: 17px; text-overflow: ellipsis; white-space: nowrap; }
 .contents-duration { justify-self: end; color: #91877f; font-size: 15px; font-variant-numeric: tabular-nums; }
 
@@ -220,13 +221,15 @@ button { color: inherit; }
   .contents-brand strong { font-size: 26px; }
   .contents-brand small { margin-top: 7px; font-size: 13px; }
   .contents-main { width: calc(100% - 28px); margin-top: 34px; }
-  .contents-link { min-height: 112px; padding: 14px 2px; grid-template-columns: 34px 78px minmax(0, 1fr); gap: 13px; }
+  .contents-link { min-height: 112px; padding: 14px 2px; grid-template-columns: 22px 78px minmax(0, 1fr); grid-template-rows: auto auto; column-gap: 10px; row-gap: 0; }
   .contents-link:hover { padding-inline: 6px; }
-  .contents-number { font-size: 14px; }
-  .contents-cover { width: 78px; height: 78px; border-radius: 14px; }
-  .contents-copy strong { font-size: 19px; }
-  .contents-copy small { margin-top: 6px; font-size: 13px; }
-  .contents-duration { grid-column: 3; justify-self: start; margin-top: -24px; font-size: 11px; }
+  .contents-number { grid-column: 1; grid-row: 1 / span 2; align-self: center; font-size: 14px; }
+  .contents-cover { grid-column: 2; grid-row: 1 / span 2; align-self: center; width: 78px; height: 78px; border-radius: 14px; }
+  .contents-copy { grid-column: 3; grid-row: 1; }
+  .contents-copy strong { display: -webkit-box; font-size: 19px; line-height: 1.12; text-overflow: clip; white-space: normal; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
+  .contents-model { margin-top: 7px; padding: 3px 7px; font-size: 8px; }
+  .contents-copy small { margin-top: 6px; font-size: 13px; text-overflow: clip; white-space: normal; }
+  .contents-duration { grid-column: 3; grid-row: 2; align-self: start; justify-self: start; margin-top: 8px; font-size: 11px; }
   .chapter-position i { width: 38px; }
   .chapter-hero { width: calc(100% - 24px); height: 300px; margin-top: 2px; margin-bottom: 26px; border-radius: 26px; }
   .hero-image { background-position: center; }

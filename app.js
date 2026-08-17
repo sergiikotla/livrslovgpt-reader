@@ -30,6 +30,10 @@
     const rounded = Math.round(value);
     return `${Math.floor(rounded / 60)}:${String(rounded % 60).padStart(2, "0")}`;
   };
+  const titleWithoutModel = (title, model) => {
+    const suffix = model ? ` · ${model}` : "";
+    return suffix && title.endsWith(suffix) ? title.slice(0, -suffix.length) : title;
+  };
 
   function element(tag, className, text) {
     const node = document.createElement(tag);
@@ -135,7 +139,9 @@
       image.src = relative(item.scenes[0].image);
       image.alt = "";
       const copy = element("span", "contents-copy");
-      copy.append(element("strong", "", item.title), element("small", "", item.titleUa));
+      copy.append(element("strong", "", titleWithoutModel(item.title, item.model)));
+      if (item.model) copy.append(element("span", "contents-model", item.model));
+      copy.append(element("small", "", titleWithoutModel(item.titleUa, item.model)));
       button.append(
         element("span", "contents-number", two(item.position || item.number)),
         image,
