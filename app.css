@@ -90,6 +90,11 @@ button { color: inherit; }
 .subtitle { margin: 14px 0 34px; color: var(--forest-soft); font: italic 19px Georgia, serif; }
 .hero-meta { display: flex; gap: 10px; }
 .hero-meta span { padding: 7px 11px; border: 1px solid rgba(23, 63, 58, .18); border-radius: 20px; background: rgba(255, 253, 248, .48); font-size: 10px; font-weight: 750; letter-spacing: .08em; }
+.chapter-hero.comparison .hero-copy { justify-content: flex-end; width: 64%; padding-bottom: 30px; color: white; }
+.chapter-hero.comparison .hero-copy h1 { font-size: clamp(34px, 4vw, 52px); line-height: 1; letter-spacing: -.04em; text-shadow: 0 2px 18px rgba(0, 0, 0, .38); }
+.chapter-hero.comparison .eyebrow, .chapter-hero.comparison .subtitle { color: rgba(255, 255, 255, .84); }
+.chapter-hero.comparison .subtitle { margin: 8px 0 14px; }
+.chapter-hero.comparison .hero-meta span { border-color: rgba(255, 255, 255, .34); background: rgba(10, 29, 27, .45); }
 
 .reading-layout { width: min(1060px, calc(100% - 48px)); margin: 0 auto; display: grid; grid-template-columns: 92px minmax(0, 1fr); gap: 28px; align-items: start; }
 .scene-strip { position: sticky; top: 18px; display: flex; flex-direction: column; gap: 12px; }
@@ -142,6 +147,8 @@ button { color: inherit; }
   .hero-image { background-position: center; }
   .hero-copy { justify-content: flex-end; width: 100%; padding: 30px; }
   .hero-copy h1 { font-size: 48px; }
+  .chapter-hero.comparison .hero-copy { width: 100%; padding: 26px; }
+  .chapter-hero.comparison .hero-copy h1 { font-size: 36px; }
   .subtitle { margin-bottom: 20px; }
   .reading-layout { width: 100%; display: block; }
   .scene-strip { position: static; padding: 0 18px 16px; flex-direction: row; overflow-x: auto; }

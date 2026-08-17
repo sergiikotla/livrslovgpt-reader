@@ -45,7 +45,7 @@
       <div class="drawer-shade" id="drawer-shade" hidden></div>
       <aside class="chapter-drawer" id="chapter-drawer" aria-hidden="true">
         <button id="close-chapters" aria-label="Закрити зміст">×</button>
-        <p>Перші три глави</p>
+        <p>Глави й порівняння моделей</p>
         <ol id="chapter-list"></ol>
       </aside>
       <section class="chapter-hero">
@@ -164,19 +164,26 @@
 
   function renderChapter() {
     const chapter = state.chapter;
-    const progress = (chapter.number / state.chapters.length) * 100;
+    const position = chapter.position || chapter.number;
+    const progress = (position / state.chapters.length) * 100;
     document.title = `${chapter.title} · Loop`;
-    document.querySelector("#chapter-position").innerHTML = `<span>${two(chapter.number)}</span><i style="background:linear-gradient(90deg,var(--apricot) ${progress}%,rgba(23,63,58,.15) ${progress}%)"></i><span>${two(state.chapters.length)}</span>`;
-    document.querySelector("#eyebrow").textContent = `${chapter.number}. poglavje · ${chapter.level}`;
+    document.querySelector("#chapter-position").innerHTML = `<span>${two(position)}</span><i style="background:linear-gradient(90deg,var(--apricot) ${progress}%,rgba(23,63,58,.15) ${progress}%)"></i><span>${two(state.chapters.length)}</span>`;
+    document.querySelector("#eyebrow").textContent = chapter.model
+      ? `${chapter.number}. poglavje · ${chapter.model} · ${chapter.level}`
+      : `${chapter.number}. poglavje · ${chapter.level}`;
     document.querySelector("#chapter-title").textContent = chapter.title;
     document.querySelector("#chapter-subtitle").textContent = chapter.subtitle;
     document.querySelector("#chapter-duration").textContent = `${Math.ceil(chapter.duration / 60)} min`;
     document.querySelector("#track-title").textContent = chapter.title;
 
+    const heroSection = document.querySelector(".chapter-hero");
+    heroSection.classList.toggle("comparison", Boolean(chapter.model));
     const hero = document.querySelector("#hero-image");
     const heroScene = chapter.scenes[1] || chapter.scenes[0];
     hero.setAttribute("aria-label", chapter.titleUa);
-    hero.style.backgroundImage = `linear-gradient(90deg,rgba(255,249,237,.98) 0%,rgba(255,249,237,.9) 34%,rgba(255,249,237,.14) 66%),url('${relative(heroScene.image)}')`;
+    hero.style.backgroundImage = chapter.model
+      ? `linear-gradient(0deg,rgba(10,29,27,.84) 0%,rgba(10,29,27,0) 58%),url('${relative(heroScene.image)}')`
+      : `linear-gradient(90deg,rgba(255,249,237,.98) 0%,rgba(255,249,237,.9) 34%,rgba(255,249,237,.14) 66%),url('${relative(heroScene.image)}')`;
 
     const { audio, seek, player } = refs();
     audio.pause();
