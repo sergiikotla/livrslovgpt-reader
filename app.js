@@ -9,6 +9,7 @@
     translation: true,
     autoScroll: true,
     fontSize: "medium",
+    translationBold: false,
     speed: 1,
     activeSegment: -1,
     activeWord: null,
@@ -56,6 +57,10 @@
               <button data-font-size="medium"><span>А</span><small>Звичайний</small></button>
               <button data-font-size="large"><span>А</span><small>Великий</small></button>
             </div>
+            <button class="translation-weight-toggle" id="translation-weight-toggle" aria-pressed="false">
+              <span><strong>Жирний переклад</strong><small>Український текст</small></span>
+              <i aria-hidden="true"></i>
+            </button>
           </div>
         </div>
       </header>
@@ -158,6 +163,15 @@
       button.classList.toggle("active", button.dataset.fontSize === state.fontSize);
     });
     if (persist) localStorage.setItem("loop-reader:font-size", state.fontSize);
+  }
+
+  function applyTranslationWeight(enabled, persist = false) {
+    state.translationBold = Boolean(enabled);
+    refs().card.classList.toggle("translation-bold", state.translationBold);
+    const toggle = document.querySelector("#translation-weight-toggle");
+    toggle.classList.toggle("active", state.translationBold);
+    toggle.setAttribute("aria-pressed", String(state.translationBold));
+    if (persist) localStorage.setItem("loop-reader:translation-bold", String(state.translationBold));
   }
 
   function renderScenes() {
@@ -277,6 +291,7 @@
     document.querySelector("#translation-toggle").classList.toggle("active", state.translation);
     document.querySelector("#autoscroll-toggle").classList.toggle("active", state.autoScroll);
     applyFontSize(state.fontSize);
+    applyTranslationWeight(state.translationBold);
 
     renderScenes();
     renderStory();
@@ -391,6 +406,10 @@
         fontButton.setAttribute("aria-expanded", "false");
       });
     });
+    document.querySelector("#translation-weight-toggle").addEventListener("click", (event) => {
+      event.stopPropagation();
+      applyTranslationWeight(!state.translationBold, true);
+    });
     document.onclick = (event) => {
       if (!event.target.closest(".font-tools")) {
         fontSettings.hidden = true;
@@ -451,6 +470,7 @@
       state.chapters = await response.json();
       const savedFontSize = localStorage.getItem("loop-reader:font-size");
       if (["small", "medium", "large"].includes(savedFontSize)) state.fontSize = savedFontSize;
+      state.translationBold = localStorage.getItem("loop-reader:translation-bold") === "true";
       const hash = location.hash.slice(1);
       const initial = state.chapters.find((item) => item.slug === hash)?.slug;
       if (initial) await loadChapter(initial);

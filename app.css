@@ -98,6 +98,14 @@ button { color: inherit; }
 .font-settings button:nth-child(3) span { font-size: 27px; }
 .font-settings button small { color: var(--muted); font-size: 9px; }
 .font-settings button.active { border-color: var(--apricot); background: rgba(236, 125, 93, .09); color: var(--apricot); box-shadow: inset 0 0 0 1px var(--apricot); }
+.font-settings .translation-weight-toggle { width: 100%; height: 62px; margin-top: 12px; padding: 10px 12px; display: flex; justify-content: space-between; align-items: center; text-align: left; }
+.translation-weight-toggle > span { display: block; }
+.translation-weight-toggle strong { display: block; color: var(--forest); font-size: 12px; }
+.translation-weight-toggle small { display: block; margin-top: 4px; }
+.translation-weight-toggle i { position: relative; width: 36px; height: 20px; flex: 0 0 auto; border-radius: 12px; background: #d9dfdc; transition: background .2s ease; }
+.translation-weight-toggle i::after { content: ""; position: absolute; top: 4px; left: 4px; width: 12px; height: 12px; border-radius: 50%; background: white; box-shadow: 0 1px 4px rgba(23, 63, 58, .18); transition: transform .2s ease; }
+.translation-weight-toggle.active i { background: var(--apricot); }
+.translation-weight-toggle.active i::after { transform: translateX(16px); }
 
 .drawer-shade { position: fixed; inset: 0; z-index: 19; background: rgba(17, 46, 42, .25); backdrop-filter: blur(2px); }
 .chapter-drawer { position: fixed; inset: 0 auto 0 0; z-index: 20; width: min(390px, 92vw); padding: 42px; color: white; background: var(--forest); box-shadow: 25px 0 80px rgba(23, 63, 58, .28); transform: translateX(-105%); transition: transform .25s ease; }
@@ -166,11 +174,12 @@ button { color: inherit; }
 .story-text { padding: 30px 38px 90px; }
 .text-segment { position: relative; margin: 0 -16px; padding: 12px 16px; border-left: 3px solid transparent; border-radius: 0 14px 14px 0; cursor: pointer; transition: background .2s ease, border-color .2s ease; scroll-margin: 28vh; }
 .text-segment.active { border-left-color: var(--apricot); background: linear-gradient(90deg, rgba(236, 125, 93, .09), transparent 76%); }
-.slovene { margin: 0; font-family: Georgia, "Times New Roman", serif; font-size: var(--reader-font-size); font-weight: 400; line-height: 1.55; letter-spacing: -.018em; }
+.slovene { margin: 0; font-family: Georgia, "Times New Roman", serif; font-size: var(--reader-font-size); font-weight: 600; line-height: 1.55; letter-spacing: -.018em; }
 .word { display: inline; margin: 0 .28em 0 0; padding: 2px 0 3px; border: 0; border-radius: 0; background: transparent; color: var(--ink); font: inherit; font-weight: 400; cursor: pointer; transition: color .12s, text-decoration-color .12s; }
 .word:hover { color: var(--apricot); }
 .word.now { color: #d65f3f; background: transparent; font-weight: 400; text-decoration-line: underline; text-decoration-thickness: 3px; text-underline-offset: 4px; text-decoration-color: var(--gold); }
 .ukrainian { margin: 8px 0 0; color: #64848a; font-family: Georgia, "Times New Roman", serif; font-size: var(--reader-font-size); font-weight: 400; line-height: 1.55; letter-spacing: -.018em; }
+.translation-bold .ukrainian { font-weight: 600; }
 .translation-off .ukrainian { display: none; }
 
 .next-chapter { width: min(1060px, calc(100% - 48px)); margin: 32px auto 42px; padding-left: 120px; }
