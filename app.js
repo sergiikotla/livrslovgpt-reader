@@ -10,13 +10,19 @@
     autoScroll: true,
     fontSize: "medium",
     translationBold: false,
+    readerMode: "study",
     speed: 1,
     activeSegment: -1,
     activeWord: null,
     activeScene: -1,
     segmentNodes: [],
     wordNodes: [],
-    sceneNodes: []
+    sceneNodes: [],
+    paragraphNodes: [],
+    activeParagraph: -1,
+    phraseEnd: null,
+    phrasePlaybackId: 0,
+    phraseFrame: null
   };
 
   const relative = (path) => String(path || "").replace(/^\/+/, "");
@@ -82,12 +88,17 @@
         <article class="reading-card" id="reading-card">
           <div class="reading-toolbar">
             <p><span class="live-dot"></span> Слухай і читай</p>
-            <div>
+            <div class="reader-actions">
+              <div class="mode-switch" role="group" aria-label="Режим читання">
+                <button class="active" id="study-mode" aria-pressed="true">Фрази</button>
+                <button id="book-mode" aria-pressed="false">Книга</button>
+              </div>
               <button class="toggle active" id="translation-toggle">UA <span></span></button>
               <button class="toggle active" id="autoscroll-toggle">AUTO <span></span></button>
             </div>
           </div>
           <div class="story-text" id="story-text"></div>
+          <div class="book-text" id="book-text" hidden></div>
         </article>
       </section>
       <section class="next-chapter" id="next-chapter" aria-label="Навігація між главами"></section>
@@ -108,6 +119,7 @@
       audio: document.querySelector("#narration"),
       card: document.querySelector("#reading-card"),
       story: document.querySelector("#story-text"),
+      book: document.querySelector("#book-text"),
       scenes: document.querySelector("#scene-strip"),
       play: document.querySelector("#play-button"),
       player: document.querySelector("#player"),
@@ -117,6 +129,7 @@
   }
 
   function showContents(updateHistory = true) {
+    cancelPhrasePreview();
     refs().audio?.pause();
     document.title = "Зміст · Loop";
     app.className = "reader-shell contents-view";
@@ -212,18 +225,60 @@
         button.dataset.end = String(word.end);
         button.addEventListener("click", (event) => {
           event.stopPropagation();
-          playFrom(segment.start);
+          playPhrase(segment);
         });
         slovene.append(button);
         words.push(button);
       });
 
       wrapper.append(slovene, element("p", "ukrainian", segment.ua));
-      wrapper.addEventListener("click", () => playFrom(segment.start));
+      wrapper.tabIndex = 0;
+      wrapper.setAttribute("role", "button");
+      wrapper.setAttribute("aria-label", `Прослухати фразу: ${segment.sl}`);
+      wrapper.addEventListener("click", () => playPhrase(segment));
+      wrapper.addEventListener("keydown", (event) => {
+        if (event.target === wrapper && (event.key === "Enter" || event.key === " ")) {
+          event.preventDefault();
+          playPhrase(segment);
+        }
+      });
       story.append(wrapper);
       state.segmentNodes.push(wrapper);
       state.wordNodes.push(words);
     });
+  }
+
+  function renderBook() {
+    const { book } = refs();
+    book.replaceChildren();
+    const paragraphs = state.chapter.paragraphs || state.chapter.segments.map((segment) => ({
+      sl: segment.sl,
+      ua: segment.ua,
+      start: segment.start,
+      end: segment.end
+    }));
+    state.paragraphNodes = paragraphs.map((paragraph) => {
+      const wrapper = element("section", "book-paragraph");
+      wrapper.append(
+        element("p", "book-slovene", paragraph.sl),
+        element("p", "book-translation", paragraph.ua)
+      );
+      book.append(wrapper);
+      return wrapper;
+    });
+  }
+
+  function applyReaderMode(mode, persist = false) {
+    state.readerMode = mode === "book" ? "book" : "study";
+    const isBook = state.readerMode === "book";
+    refs().story.hidden = isBook;
+    refs().book.hidden = !isBook;
+    document.querySelector("#study-mode").classList.toggle("active", !isBook);
+    document.querySelector("#study-mode").setAttribute("aria-pressed", String(!isBook));
+    document.querySelector("#book-mode").classList.toggle("active", isBook);
+    document.querySelector("#book-mode").setAttribute("aria-pressed", String(isBook));
+    if (persist) localStorage.setItem("loop-reader:mode", state.readerMode);
+    if (state.chapter) updateAt(refs().audio.currentTime || 0);
   }
 
   function renderNextChapter() {
@@ -283,6 +338,7 @@
       : `linear-gradient(90deg,rgba(255,249,237,.98) 0%,rgba(255,249,237,.9) 34%,rgba(255,249,237,.14) 66%),url('${relative(heroScene.image)}')`;
 
     const { audio, seek, player } = refs();
+    cancelPhrasePreview();
     audio.pause();
     audio.src = relative(chapter.audio);
     audio.playbackRate = state.speed;
@@ -293,6 +349,7 @@
     state.activeSegment = -1;
     state.activeWord = null;
     state.activeScene = -1;
+    state.activeParagraph = -1;
     refs().card.classList.toggle("translation-off", !state.translation);
     document.querySelector("#translation-toggle").classList.toggle("active", state.translation);
     document.querySelector("#autoscroll-toggle").classList.toggle("active", state.autoScroll);
@@ -301,6 +358,8 @@
 
     renderScenes();
     renderStory();
+    renderBook();
+    applyReaderMode(state.readerMode);
     renderNextChapter();
     updateAt(0);
   }
@@ -330,9 +389,46 @@
 
   function playFrom(start) {
     const { audio } = refs();
+    cancelPhrasePreview();
     audio.currentTime = start;
     updateAt(start);
     audio.play().catch(() => {});
+  }
+
+  function cancelPhrasePreview(pause = false) {
+    state.phrasePlaybackId += 1;
+    state.phraseEnd = null;
+    if (state.phraseFrame !== null) cancelAnimationFrame(state.phraseFrame);
+    state.phraseFrame = null;
+    if (pause) refs().audio?.pause();
+  }
+
+  function playPhrase(segment) {
+    const { audio, player, play } = refs();
+    cancelPhrasePreview();
+    const playbackId = state.phrasePlaybackId;
+    state.phraseEnd = segment.end;
+    audio.currentTime = segment.start;
+    updateAt(segment.start);
+    player.classList.remove("playing");
+    play.setAttribute("aria-label", "Відтворити весь текст");
+
+    const monitor = () => {
+      if (playbackId !== state.phrasePlaybackId || state.phraseEnd === null) return;
+      if (audio.currentTime >= state.phraseEnd - .025 || audio.ended) {
+        const end = state.phraseEnd;
+        cancelPhrasePreview();
+        audio.pause();
+        audio.currentTime = Math.min(end, audio.duration || end);
+        updateAt(audio.currentTime);
+        return;
+      }
+      state.phraseFrame = requestAnimationFrame(monitor);
+    };
+
+    audio.play().then(() => {
+      if (playbackId === state.phrasePlaybackId) state.phraseFrame = requestAnimationFrame(monitor);
+    }).catch(() => cancelPhrasePreview());
   }
 
   function findSegment(time) {
@@ -363,7 +459,9 @@
       state.activeSegment = segmentIndex;
       const active = state.segmentNodes[segmentIndex];
       active?.classList.add("active");
-      if (state.autoScroll && active && !audio.paused) active.scrollIntoView({ behavior: "smooth", block: "center" });
+      if (state.readerMode === "study" && state.autoScroll && active && !audio.paused) {
+        active.scrollIntoView({ behavior: "smooth", block: "center" });
+      }
     }
 
     let nextWord = null;
@@ -376,6 +474,18 @@
       state.activeWord?.classList.remove("now");
       nextWord?.classList.add("now");
       state.activeWord = nextWord;
+    }
+
+    const paragraphs = state.chapter.paragraphs || [];
+    const paragraphIndex = paragraphs.findIndex((paragraph) => time >= paragraph.start && time <= paragraph.end + .7);
+    if (paragraphIndex !== state.activeParagraph) {
+      if (state.activeParagraph >= 0) state.paragraphNodes[state.activeParagraph]?.classList.remove("active");
+      state.activeParagraph = paragraphIndex;
+      const activeParagraph = state.paragraphNodes[paragraphIndex];
+      activeParagraph?.classList.add("active");
+      if (state.readerMode === "book" && state.autoScroll && activeParagraph && !audio.paused) {
+        activeParagraph.scrollIntoView({ behavior: "smooth", block: "center" });
+      }
     }
 
     let sceneIndex = 0;
@@ -424,11 +534,22 @@
       }
     };
     document.querySelector("#translation-toggle").addEventListener("click", toggleTranslation);
+    document.querySelector("#study-mode").addEventListener("click", () => applyReaderMode("study", true));
+    document.querySelector("#book-mode").addEventListener("click", () => applyReaderMode("book", true));
     document.querySelector("#autoscroll-toggle").addEventListener("click", (event) => {
       state.autoScroll = !state.autoScroll;
       event.currentTarget.classList.toggle("active", state.autoScroll);
     });
-    play.addEventListener("click", () => audio.paused ? audio.play().catch(() => {}) : audio.pause());
+    play.addEventListener("click", () => {
+      if (state.phraseEnd !== null) {
+        cancelPhrasePreview();
+        player.classList.add("playing");
+        play.setAttribute("aria-label", "Пауза");
+        if (audio.paused) audio.play().catch(() => {});
+        return;
+      }
+      audio.paused ? audio.play().catch(() => {}) : audio.pause();
+    });
     document.querySelector("#speed-button").addEventListener("click", (event) => {
       const index = speeds.indexOf(state.speed);
       state.speed = speeds[(index + 1) % speeds.length];
@@ -436,10 +557,16 @@
       event.currentTarget.textContent = `${state.speed}×`;
     });
     seek.addEventListener("input", (event) => {
+      cancelPhrasePreview(true);
       audio.currentTime = Number(event.currentTarget.value);
       updateAt(audio.currentTime);
     });
-    audio.addEventListener("play", () => { player.classList.add("playing"); play.setAttribute("aria-label", "Пауза"); });
+    audio.addEventListener("play", () => {
+      if (state.phraseEnd === null) {
+        player.classList.add("playing");
+        play.setAttribute("aria-label", "Пауза");
+      }
+    });
     audio.addEventListener("pause", () => { player.classList.remove("playing"); play.setAttribute("aria-label", "Відтворити"); });
     audio.addEventListener("ended", () => player.classList.remove("playing"));
     audio.addEventListener("timeupdate", () => {
@@ -459,7 +586,12 @@
       }
       if (event.code === "Space" && !["INPUT", "BUTTON"].includes(document.activeElement?.tagName)) {
         event.preventDefault();
-        audio.paused ? audio.play().catch(() => {}) : audio.pause();
+        if (state.phraseEnd !== null) {
+          cancelPhrasePreview();
+          if (audio.paused) audio.play().catch(() => {});
+        } else {
+          audio.paused ? audio.play().catch(() => {}) : audio.pause();
+        }
       }
     };
   }
@@ -477,6 +609,7 @@
       const savedFontSize = localStorage.getItem("loop-reader:font-size");
       if (["small", "medium", "large"].includes(savedFontSize)) state.fontSize = savedFontSize;
       state.translationBold = localStorage.getItem("loop-reader:translation-bold") === "true";
+      state.readerMode = localStorage.getItem("loop-reader:mode") === "book" ? "book" : "study";
       const hash = location.hash.slice(1);
       const initial = state.chapters.find((item) => item.slug === hash)?.slug;
       if (initial) await loadChapter(initial);
