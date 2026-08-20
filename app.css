@@ -140,6 +140,15 @@ button { color: inherit; }
 .contents-model { display: inline-flex; margin-top: 8px; padding: 4px 9px; border: 1px solid rgba(185, 109, 69, .24); border-radius: 999px; background: rgba(236, 125, 93, .09); color: #a75e3c; font-size: 10px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; }
 .contents-copy small { display: block; margin-top: 9px; overflow: hidden; color: #91877f; font-size: 17px; text-overflow: ellipsis; white-space: nowrap; }
 .contents-duration { justify-self: end; color: #91877f; font-size: 15px; font-variant-numeric: tabular-nums; }
+.extras-section { margin-top: 82px; padding-top: 54px; border-top: 1px solid rgba(23, 63, 58, .16); }
+.extras-heading { max-width: 660px; margin-bottom: 24px; }
+.extras-heading p { margin: 0 0 10px; color: #b96d45; font-size: 10px; font-weight: 850; letter-spacing: .16em; text-transform: uppercase; }
+.extras-heading h2 { margin: 0; color: var(--forest); font: 500 42px/1 Georgia, serif; letter-spacing: -.035em; }
+.extras-heading span { display: block; margin-top: 13px; color: var(--muted); font: 17px/1.5 Georgia, serif; }
+.extras-list { border-top: 1px solid rgba(23, 63, 58, .14); }
+.extra-item .contents-number { color: #b96d45; font-weight: 800; }
+.extra-item .contents-cover { border-color: rgba(185, 109, 69, .24); }
+.extra-badge { border-color: rgba(23, 63, 58, .18); background: rgba(23, 63, 58, .07); color: var(--forest-soft); }
 
 .chapter-hero { position: relative; width: min(1180px, calc(100% - 48px)); height: 320px; margin: 10px auto 54px; overflow: hidden; border-radius: 34px; background: var(--forest); box-shadow: 0 22px 60px rgba(36, 73, 65, .16); }
 .hero-image { position: absolute; inset: 0; background-position: center 45%; background-size: cover; }
@@ -154,6 +163,8 @@ button { color: inherit; }
 .chapter-hero.comparison .eyebrow, .chapter-hero.comparison .subtitle { color: rgba(255, 255, 255, .84); }
 .chapter-hero.comparison .subtitle { margin: 8px 0 14px; }
 .chapter-hero.comparison .hero-meta span { border-color: rgba(255, 255, 255, .34); background: rgba(10, 29, 27, .45); }
+.chapter-hero.extra .hero-copy h1 { font-size: clamp(38px, 5vw, 62px); line-height: .98; }
+.chapter-hero.extra .subtitle { margin-bottom: 22px; }
 
 .reading-layout { width: min(1060px, calc(100% - 48px)); margin: 0 auto; display: grid; grid-template-columns: 92px minmax(0, 1fr); gap: 28px; align-items: start; }
 .scene-strip { position: sticky; top: 18px; display: flex; flex-direction: column; gap: 12px; }
@@ -274,6 +285,10 @@ body.vocabulary-open { overflow: hidden; }
   .contents-model { margin-top: 7px; padding: 3px 7px; font-size: 8px; }
   .contents-copy small { margin-top: 6px; font-size: 13px; text-overflow: clip; white-space: normal; }
   .contents-duration { grid-column: 3; grid-row: 2; align-self: start; justify-self: start; margin-top: 8px; font-size: 11px; }
+  .extras-section { margin-top: 54px; padding-top: 36px; }
+  .extras-heading { margin-bottom: 17px; padding: 0 4px; }
+  .extras-heading h2 { font-size: 34px; }
+  .extras-heading span { margin-top: 10px; font-size: 15px; }
   .chapter-position i { width: 38px; }
   .header-tools { gap: 6px; }
   .vocabulary-button { min-height: 38px; padding: 6px; }
@@ -285,6 +300,7 @@ body.vocabulary-open { overflow: hidden; }
   .hero-copy h1 { font-size: 48px; }
   .chapter-hero.comparison .hero-copy { width: 100%; padding: 26px; }
   .chapter-hero.comparison .hero-copy h1 { font-size: 36px; }
+  .chapter-hero.extra .hero-copy h1 { font-size: 39px; }
   .subtitle { margin-bottom: 20px; }
   .reading-layout { width: 100%; display: block; }
   .scene-strip { position: static; padding: 0 18px 16px; flex-direction: row; overflow-x: auto; }

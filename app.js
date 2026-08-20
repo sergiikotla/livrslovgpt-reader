@@ -6,6 +6,7 @@
   const vocabularyKey = "loop-reader:vocabulary:v1";
   const state = {
     chapters: [],
+    extras: [],
     chapter: null,
     translation: true,
     autoScroll: true,
@@ -45,6 +46,9 @@
     const suffix = model ? ` · ${model}` : "";
     return suffix && title.endsWith(suffix) ? title.slice(0, -suffix.length) : title;
   };
+  const allReadings = () => [...state.chapters, ...state.extras];
+  const readingCollection = () => state.chapter?.kind === "extra" ? state.extras : state.chapters;
+  const findReading = (slug) => allReadings().find((item) => item.slug === slug);
 
   function element(tag, className, text) {
     const node = document.createElement(tag);
@@ -60,7 +64,7 @@
       <header class="topbar">
         <button class="contents-back" id="back-to-contents" aria-label="Повернутися до змісту">
           <span class="back-arrow" aria-hidden="true">←</span>
-          <span><strong>Зміст</strong><small>усі глави</small></span>
+          <span><strong>Зміст</strong><small>книга й екстра</small></span>
         </button>
         <div class="chapter-position" id="chapter-position"></div>
         <div class="header-tools">
@@ -94,7 +98,7 @@
         </div>
       </section>
       <section class="reading-layout">
-        <aside class="scene-strip" id="scene-strip" aria-label="Сцени глави"></aside>
+        <aside class="scene-strip" id="scene-strip" aria-label="Сцени тексту"></aside>
         <article class="reading-card" id="reading-card">
           <div class="reading-toolbar">
             <p><span class="live-dot"></span> Слухай і читай</p>
@@ -138,6 +142,29 @@
     };
   }
 
+  function appendContentsItem(list, item, extra = false) {
+    const row = element("li", `contents-item${extra ? " extra-item" : ""}`);
+    const button = element("button", "contents-link");
+    const image = element("img", "contents-cover");
+    image.src = relative(item.scenes[0].image);
+    image.alt = "";
+    image.loading = "lazy";
+    const copy = element("span", "contents-copy");
+    copy.append(element("strong", "", titleWithoutModel(item.title, item.model)));
+    if (item.model) copy.append(element("span", "contents-model", item.model));
+    if (extra) copy.append(element("span", "contents-model extra-badge", "Поза книжкою"));
+    copy.append(element("small", "", titleWithoutModel(item.titleUa, item.model)));
+    button.append(
+      element("span", "contents-number", extra ? `E${item.position || item.number}` : two(item.position || item.number)),
+      image,
+      copy,
+      element("time", "contents-duration", formatDuration(item.duration))
+    );
+    button.addEventListener("click", () => loadChapter(item.slug, true));
+    row.append(button);
+    list.append(row);
+  }
+
   function showContents(updateHistory = true) {
     cancelPendingWordTap();
     cancelPhrasePreview();
@@ -158,29 +185,20 @@
       </header>
       <main class="contents-main">
         <ol class="contents-list" id="contents-list"></ol>
+        <section class="extras-section" aria-labelledby="extras-title">
+          <div class="extras-heading">
+            <p>Окремо від історії Loop</p>
+            <h2 id="extras-title">Екстра-читання</h2>
+            <span>Додаткові словенсько-українські тексти з власним озвученням.</span>
+          </div>
+          <ol class="contents-list extras-list" id="extras-list"></ol>
+        </section>
       </main>`;
 
     const list = document.querySelector("#contents-list");
-    state.chapters.forEach((item) => {
-      const row = element("li", "contents-item");
-      const button = element("button", "contents-link");
-      const image = element("img", "contents-cover");
-      image.src = relative(item.scenes[0].image);
-      image.alt = "";
-      const copy = element("span", "contents-copy");
-      copy.append(element("strong", "", titleWithoutModel(item.title, item.model)));
-      if (item.model) copy.append(element("span", "contents-model", item.model));
-      copy.append(element("small", "", titleWithoutModel(item.titleUa, item.model)));
-      button.append(
-        element("span", "contents-number", two(item.position || item.number)),
-        image,
-        copy,
-        element("time", "contents-duration", formatDuration(item.duration))
-      );
-      button.addEventListener("click", () => loadChapter(item.slug, true));
-      row.append(button);
-      list.append(row);
-    });
+    state.chapters.forEach((item) => appendContentsItem(list, item));
+    const extrasList = document.querySelector("#extras-list");
+    state.extras.forEach((item) => appendContentsItem(extrasList, item, true));
 
     bindVocabularyButtons();
 
@@ -378,14 +396,16 @@
 
   function renderNextChapter() {
     const container = document.querySelector("#next-chapter");
-    const currentIndex = state.chapters.findIndex((item) => item.slug === state.chapter.slug);
-    const next = state.chapters[currentIndex + 1];
+    const collection = readingCollection();
+    const isExtra = state.chapter.kind === "extra";
+    const currentIndex = collection.findIndex((item) => item.slug === state.chapter.slug);
+    const next = collection[currentIndex + 1];
     container.replaceChildren();
 
     if (!next) {
       const finish = element("button", "next-chapter-card finished");
       finish.append(
-        element("span", "next-kicker", "Усі глави прочитано"),
+        element("span", "next-kicker", isExtra ? "Усі екстра-тексти прочитано" : "Усі глави прочитано"),
         element("strong", "", "Повернутися до змісту"),
         element("span", "next-arrow", "→")
       );
@@ -400,7 +420,7 @@
     image.alt = "";
     const copy = element("span", "next-copy");
     copy.append(
-      element("span", "next-kicker", `Наступна глава · ${two(next.position || next.number)}`),
+      element("span", "next-kicker", isExtra ? `Наступний екстра-текст · E${next.position || next.number}` : `Наступна глава · ${two(next.position || next.number)}`),
       element("strong", "", next.title),
       element("small", "", next.titleUa)
     );
@@ -411,13 +431,17 @@
 
   function renderChapter() {
     const chapter = state.chapter;
+    const collection = readingCollection();
+    const isExtra = chapter.kind === "extra";
     const position = chapter.position || chapter.number;
-    const progress = (position / state.chapters.length) * 100;
+    const progress = (position / collection.length) * 100;
     document.title = `${chapter.title} · Loop`;
-    document.querySelector("#chapter-position").innerHTML = `<span>${two(position)}</span><i style="background:linear-gradient(90deg,var(--apricot) ${progress}%,rgba(23,63,58,.15) ${progress}%)"></i><span>${two(state.chapters.length)}</span>`;
-    document.querySelector("#eyebrow").textContent = chapter.model
-      ? `${chapter.number}. poglavje · ${chapter.model} · ${chapter.level}`
-      : `${chapter.number}. poglavje · ${chapter.level}`;
+    document.querySelector("#chapter-position").innerHTML = `<span>${isExtra ? `E${position}` : two(position)}</span><i style="background:linear-gradient(90deg,var(--apricot) ${progress}%,rgba(23,63,58,.15) ${progress}%)"></i><span>${two(collection.length)}</span>`;
+    document.querySelector("#eyebrow").textContent = isExtra
+      ? `Dodatno branje · ${chapter.level}`
+      : chapter.model
+        ? `${chapter.number}. poglavje · ${chapter.model} · ${chapter.level}`
+        : `${chapter.number}. poglavje · ${chapter.level}`;
     document.querySelector("#chapter-title").textContent = chapter.title;
     document.querySelector("#chapter-subtitle").textContent = chapter.subtitle;
     document.querySelector("#chapter-duration").textContent = `${Math.ceil(chapter.duration / 60)} min`;
@@ -425,8 +449,9 @@
 
     const heroSection = document.querySelector(".chapter-hero");
     heroSection.classList.toggle("comparison", Boolean(chapter.model));
+    heroSection.classList.toggle("extra", isExtra);
     const hero = document.querySelector("#hero-image");
-    const heroScene = chapter.scenes[1] || chapter.scenes[0];
+    const heroScene = isExtra ? chapter.scenes[0] : chapter.scenes[1] || chapter.scenes[0];
     hero.setAttribute("aria-label", chapter.titleUa);
     hero.style.backgroundImage = chapter.model
       ? `linear-gradient(0deg,rgba(10,29,27,.84) 0%,rgba(10,29,27,0) 58%),url('${relative(heroScene.image)}')`
@@ -885,20 +910,25 @@
     try {
       loadVocabulary();
       ensureVocabularyUi();
-      const response = await fetch("data/chapters.json");
-      if (!response.ok) throw new Error(`HTTP ${response.status}`);
-      state.chapters = await response.json();
+      const [chaptersResponse, extrasResponse] = await Promise.all([
+        fetch("data/chapters.json"),
+        fetch("data/extras.json")
+      ]);
+      if (!chaptersResponse.ok) throw new Error(`HTTP ${chaptersResponse.status}`);
+      if (!extrasResponse.ok) throw new Error(`HTTP ${extrasResponse.status}`);
+      state.chapters = await chaptersResponse.json();
+      state.extras = await extrasResponse.json();
       const savedFontSize = localStorage.getItem("loop-reader:font-size");
       if (["small", "medium", "large"].includes(savedFontSize)) state.fontSize = savedFontSize;
       state.translationBold = localStorage.getItem("loop-reader:translation-bold") === "true";
       state.readerMode = localStorage.getItem("loop-reader:mode") === "book" ? "book" : "study";
       const hash = location.hash.slice(1);
-      const initial = state.chapters.find((item) => item.slug === hash)?.slug;
+      const initial = findReading(hash)?.slug;
       if (initial) await loadChapter(initial);
       else showContents(false);
 
       window.addEventListener("popstate", () => {
-        const target = state.chapters.find((item) => item.slug === location.hash.slice(1));
+        const target = findReading(location.hash.slice(1));
         if (target) loadChapter(target.slug, false);
         else showContents(false);
       });
