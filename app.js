@@ -3,6 +3,7 @@
 
   const app = document.querySelector("#app");
   const speeds = [0.75, 1, 1.25];
+  const vocabularyKey = "loop-reader:vocabulary:v1";
   const state = {
     chapters: [],
     chapter: null,
@@ -22,7 +23,11 @@
     activeParagraph: -1,
     phraseEnd: null,
     phrasePlaybackId: 0,
-    phraseFrame: null
+    phraseFrame: null,
+    vocabulary: [],
+    pendingWordTap: null,
+    vocabularyTrigger: null,
+    toastTimer: null
   };
 
   const relative = (path) => String(path || "").replace(/^\/+/, "");
@@ -58,19 +63,24 @@
           <span><strong>Зміст</strong><small>усі глави</small></span>
         </button>
         <div class="chapter-position" id="chapter-position"></div>
-        <div class="font-tools">
-          <button class="round-button" id="font-settings-button" aria-label="Налаштувати розмір тексту" aria-expanded="false">Aa</button>
-          <div class="font-settings" id="font-settings" hidden>
-            <p>Розмір тексту</p>
-            <div>
-              <button data-font-size="small"><span>А</span><small>Малий</small></button>
-              <button data-font-size="medium"><span>А</span><small>Звичайний</small></button>
-              <button data-font-size="large"><span>А</span><small>Великий</small></button>
+        <div class="header-tools">
+          <button class="vocabulary-button" data-open-vocabulary aria-label="Відкрити словничок">
+            <span>Слова</span><strong class="vocabulary-count">0</strong>
+          </button>
+          <div class="font-tools">
+            <button class="round-button" id="font-settings-button" aria-label="Налаштувати розмір тексту" aria-expanded="false">Aa</button>
+            <div class="font-settings" id="font-settings" hidden>
+              <p>Розмір тексту</p>
+              <div>
+                <button data-font-size="small"><span>А</span><small>Малий</small></button>
+                <button data-font-size="medium"><span>А</span><small>Звичайний</small></button>
+                <button data-font-size="large"><span>А</span><small>Великий</small></button>
+              </div>
+              <button class="translation-weight-toggle" id="translation-weight-toggle" aria-pressed="false">
+                <span><strong>Жирний переклад</strong><small>Український текст</small></span>
+                <i aria-hidden="true"></i>
+              </button>
             </div>
-            <button class="translation-weight-toggle" id="translation-weight-toggle" aria-pressed="false">
-              <span><strong>Жирний переклад</strong><small>Український текст</small></span>
-              <i aria-hidden="true"></i>
-            </button>
           </div>
         </div>
       </header>
@@ -129,6 +139,7 @@
   }
 
   function showContents(updateHistory = true) {
+    cancelPendingWordTap();
     cancelPhrasePreview();
     refs().audio?.pause();
     document.title = "Зміст · Loop";
@@ -136,8 +147,13 @@
     app.innerHTML = `
       <header class="contents-header">
         <div class="contents-brand">
-          <span class="brand-mark" aria-hidden="true">L</span>
-          <span><strong>Loop</strong><small>словенська з перекладом і озвученням</small></span>
+          <span class="contents-brand-identity">
+            <span class="brand-mark" aria-hidden="true">L</span>
+            <span><strong>Loop</strong><small>словенська з перекладом і озвученням</small></span>
+          </span>
+          <button class="vocabulary-button" data-open-vocabulary aria-label="Відкрити словничок">
+            <span>Слова</span><strong class="vocabulary-count">0</strong>
+          </button>
         </div>
       </header>
       <main class="contents-main">
@@ -165,6 +181,8 @@
       row.append(button);
       list.append(row);
     });
+
+    bindVocabularyButtons();
 
     if (updateHistory) history.pushState(null, "", "#contents");
     document.onkeydown = null;
@@ -219,14 +237,8 @@
       const slovene = element("p", "slovene");
       const words = [];
 
-      segment.words.forEach((word, index) => {
-        const button = element("button", "word", word.text);
-        button.dataset.start = String(word.start);
-        button.dataset.end = String(word.end);
-        button.addEventListener("click", (event) => {
-          event.stopPropagation();
-          playPhrase(segment);
-        });
+      segment.words.forEach((word) => {
+        const button = createInteractiveWord(word, segment, "word");
         slovene.append(button);
         words.push(button);
       });
@@ -257,10 +269,48 @@
       start: segment.start,
       end: segment.end
     }));
-    state.paragraphNodes = paragraphs.map((paragraph) => {
+    const segmentsByParagraph = new Map();
+    state.chapter.segments.forEach((segment) => {
+      const group = segmentsByParagraph.get(segment.paragraph) || [];
+      group.push(segment);
+      segmentsByParagraph.set(segment.paragraph, group);
+    });
+
+    state.paragraphNodes = paragraphs.map((paragraph, paragraphIndex) => {
       const wrapper = element("section", "book-paragraph");
+      const slovene = element("p", "book-slovene");
+      const segments = segmentsByParagraph.get(paragraphIndex) || [];
+      if (segments.length) {
+        const tokens = segments.flatMap((segment) => segment.words.map((word) => ({ word, segment })));
+        const positions = [];
+        let searchFrom = 0;
+        let tokenMatch = true;
+        tokens.forEach((token) => {
+          if (!tokenMatch) return;
+          const start = paragraph.sl.indexOf(token.word.text, searchFrom);
+          if (start >= 0) {
+            positions.push({ ...token, start });
+            searchFrom = start + token.word.text.length;
+          } else {
+            tokenMatch = false;
+          }
+        });
+        if (tokenMatch) {
+          let cursor = 0;
+          positions.forEach(({ word, segment, start }) => {
+            slovene.append(document.createTextNode(paragraph.sl.slice(cursor, start)));
+            slovene.append(createInteractiveWord(word, segment, "book-word"));
+            cursor = start + word.text.length;
+          });
+          slovene.append(document.createTextNode(paragraph.sl.slice(cursor)));
+        } else {
+          slovene.textContent = paragraph.sl;
+        }
+      } else {
+        slovene.textContent = paragraph.sl;
+      }
       wrapper.append(
-        element("p", "book-slovene", paragraph.sl),
+        slovene,
         element("p", "book-translation", paragraph.ua)
       );
       book.append(wrapper);
@@ -268,7 +318,52 @@
     });
   }
 
+  function createInteractiveWord(word, segment, className) {
+    const button = element("button", className, word.text);
+    button.dataset.start = String(word.start);
+    button.dataset.end = String(word.end);
+    button.setAttribute("aria-label", `${word.text}. Натисніть один раз, щоб прослухати речення; двічі — щоб додати слово.`);
+    button.addEventListener("click", (event) => handleWordTap(event, button, word, segment));
+    button.addEventListener("keydown", (event) => {
+      if (event.shiftKey && (event.key === "Enter" || event.key === " ")) {
+        event.preventDefault();
+        addVocabularyWord(word.text, segment);
+      }
+    });
+    return button;
+  }
+
+  function handleWordTap(event, button, word, segment) {
+    event.stopPropagation();
+    if (event.detail === 0) {
+      playPhrase(segment);
+      return;
+    }
+
+    const now = Date.now();
+    const pending = state.pendingWordTap;
+    if (pending?.button === button && now - pending.time <= 360) {
+      clearTimeout(pending.timer);
+      state.pendingWordTap = null;
+      addVocabularyWord(word.text, segment);
+      return;
+    }
+
+    if (pending) {
+      clearTimeout(pending.timer);
+      playPhrase(pending.segment);
+    }
+    const timer = setTimeout(() => {
+      if (state.pendingWordTap?.button === button) {
+        state.pendingWordTap = null;
+        playPhrase(segment);
+      }
+    }, 300);
+    state.pendingWordTap = { button, segment, time: now, timer };
+  }
+
   function applyReaderMode(mode, persist = false) {
+    cancelPendingWordTap();
     state.readerMode = mode === "book" ? "book" : "study";
     const isBook = state.readerMode === "book";
     refs().story.hidden = isBook;
@@ -370,6 +465,7 @@
 
   async function loadChapter(slug, userInitiated = false) {
     try {
+      cancelPendingWordTap();
       refs().audio?.pause();
       if (!document.querySelector("#narration")) {
         playerTemplate();
@@ -389,6 +485,7 @@
 
   function playFrom(start) {
     const { audio } = refs();
+    cancelPendingWordTap();
     cancelPhrasePreview();
     audio.currentTime = start;
     updateAt(start);
@@ -503,9 +600,188 @@
     document.querySelector("#translation-toggle").classList.toggle("active", state.translation);
   }
 
+  function cancelPendingWordTap() {
+    if (state.pendingWordTap) clearTimeout(state.pendingWordTap.timer);
+    state.pendingWordTap = null;
+  }
+
+  function normalizeVocabularyWord(value) {
+    return String(value || "")
+      .replace(/^[^\p{L}\p{N}'’ʼ-]+|[^\p{L}\p{N}'’ʼ-]+$/gu, "")
+      .toLocaleLowerCase("sl");
+  }
+
+  function loadVocabulary() {
+    try {
+      const parsed = JSON.parse(localStorage.getItem(vocabularyKey) || "[]");
+      state.vocabulary = Array.isArray(parsed)
+        ? parsed.filter((entry) => entry && entry.word && entry.normalized && entry.sentenceSl && entry.sentenceUa)
+        : [];
+    } catch {
+      state.vocabulary = [];
+    }
+  }
+
+  function saveVocabulary(nextVocabulary) {
+    try {
+      localStorage.setItem(vocabularyKey, JSON.stringify(nextVocabulary));
+      state.vocabulary = nextVocabulary;
+      updateVocabularyBadges();
+      return true;
+    } catch {
+      showToast("Не вдалося зберегти слово у цьому браузері.");
+      return false;
+    }
+  }
+
+  function addVocabularyWord(wordText, segment) {
+    const normalized = normalizeVocabularyWord(wordText);
+    if (!normalized || !/[\p{L}\p{N}]/u.test(normalized)) {
+      showToast("Цей знак не можна додати як слово.");
+      return;
+    }
+    if (state.vocabulary.some((entry) => entry.normalized === normalized)) {
+      showToast(`«${wordText}» уже є у словничку.`);
+      return;
+    }
+
+    const entry = {
+      id: `${normalized}:${Date.now()}`,
+      word: String(wordText).trim(),
+      normalized,
+      sentenceSl: segment.sl,
+      sentenceUa: segment.ua,
+      chapterSlug: state.chapter.slug,
+      chapterTitle: state.chapter.title,
+      level: state.chapter.level,
+      addedAt: new Date().toISOString()
+    };
+    if (saveVocabulary([entry, ...state.vocabulary])) showToast(`«${entry.word}» додано до словничка.`);
+  }
+
+  function removeVocabularyWord(id) {
+    const next = state.vocabulary.filter((entry) => entry.id !== id);
+    if (next.length === state.vocabulary.length) return;
+    if (saveVocabulary(next)) renderVocabulary();
+  }
+
+  function ensureVocabularyUi() {
+    if (document.querySelector("#vocabulary-layer")) return;
+    const layer = element("div", "vocabulary-layer");
+    layer.id = "vocabulary-layer";
+    layer.hidden = true;
+    layer.innerHTML = `
+      <div class="vocabulary-backdrop" data-close-vocabulary></div>
+      <aside class="vocabulary-panel" role="dialog" aria-modal="true" aria-labelledby="vocabulary-title">
+        <header class="vocabulary-header">
+          <div>
+            <p>Loop</p>
+            <h2 id="vocabulary-title">Мій словничок</h2>
+            <span id="vocabulary-total">Збережено: 0</span>
+          </div>
+          <button class="vocabulary-close" data-close-vocabulary aria-label="Закрити словничок">×</button>
+        </header>
+        <div class="vocabulary-list" id="vocabulary-list"></div>
+      </aside>`;
+    const toast = element("div", "reader-toast");
+    toast.id = "reader-toast";
+    toast.setAttribute("role", "status");
+    toast.setAttribute("aria-live", "polite");
+    document.body.append(layer, toast);
+    layer.querySelectorAll("[data-close-vocabulary]").forEach((button) => {
+      button.addEventListener("click", closeVocabulary);
+    });
+    document.addEventListener("keydown", (event) => {
+      if (event.key === "Escape" && !layer.hidden) {
+        event.preventDefault();
+        closeVocabulary();
+      }
+    });
+  }
+
+  function bindVocabularyButtons() {
+    document.querySelectorAll("[data-open-vocabulary]").forEach((button) => {
+      button.addEventListener("click", () => openVocabulary(button));
+    });
+    updateVocabularyBadges();
+  }
+
+  function updateVocabularyBadges() {
+    document.querySelectorAll(".vocabulary-count").forEach((badge) => {
+      badge.textContent = String(state.vocabulary.length);
+    });
+    const total = document.querySelector("#vocabulary-total");
+    if (total) total.textContent = `Збережено: ${state.vocabulary.length}`;
+  }
+
+  function openVocabulary(trigger) {
+    cancelPendingWordTap();
+    cancelPhrasePreview(true);
+    state.vocabularyTrigger = trigger || document.activeElement;
+    renderVocabulary();
+    const layer = document.querySelector("#vocabulary-layer");
+    layer.hidden = false;
+    document.body.classList.add("vocabulary-open");
+    layer.querySelector(".vocabulary-close").focus();
+  }
+
+  function closeVocabulary() {
+    const layer = document.querySelector("#vocabulary-layer");
+    if (!layer || layer.hidden) return;
+    layer.hidden = true;
+    document.body.classList.remove("vocabulary-open");
+    state.vocabularyTrigger?.focus?.();
+    state.vocabularyTrigger = null;
+  }
+
+  function renderVocabulary() {
+    const list = document.querySelector("#vocabulary-list");
+    if (!list) return;
+    list.replaceChildren();
+    updateVocabularyBadges();
+    if (!state.vocabulary.length) {
+      const empty = element("section", "vocabulary-empty");
+      empty.append(
+        element("strong", "", "Тут поки немає слів"),
+        element("p", "", "Двічі торкніться або двічі клацніть по слову в тексті. Ми збережемо слово разом із реченням та його перекладом.")
+      );
+      list.append(empty);
+      return;
+    }
+
+    state.vocabulary.forEach((entry) => {
+      const card = element("article", "vocabulary-card");
+      const remove = element("button", "vocabulary-remove", "Видалити");
+      remove.setAttribute("aria-label", `Видалити слово ${entry.word}`);
+      remove.addEventListener("click", () => removeVocabularyWord(entry.id));
+      const metaText = entry.level && !entry.chapterTitle.includes(entry.level)
+        ? `${entry.chapterTitle} · ${entry.level}`
+        : entry.chapterTitle;
+      const meta = element("p", "vocabulary-meta", metaText);
+      card.append(
+        remove,
+        element("strong", "vocabulary-word", entry.word),
+        element("p", "vocabulary-sentence", entry.sentenceSl),
+        element("p", "vocabulary-translation", entry.sentenceUa),
+        meta
+      );
+      list.append(card);
+    });
+  }
+
+  function showToast(message) {
+    const toast = document.querySelector("#reader-toast");
+    if (!toast) return;
+    clearTimeout(state.toastTimer);
+    toast.textContent = message;
+    toast.classList.add("visible");
+    state.toastTimer = setTimeout(() => toast.classList.remove("visible"), 2400);
+  }
+
   function bindEvents() {
     const { audio, play, player, seek } = refs();
     document.querySelector("#back-to-contents").addEventListener("click", () => showContents(true));
+    bindVocabularyButtons();
     const fontButton = document.querySelector("#font-settings-button");
     const fontSettings = document.querySelector("#font-settings");
     fontButton.addEventListener("click", (event) => {
@@ -541,6 +817,7 @@
       event.currentTarget.classList.toggle("active", state.autoScroll);
     });
     play.addEventListener("click", () => {
+      cancelPendingWordTap();
       if (state.phraseEnd !== null) {
         cancelPhrasePreview();
         player.classList.add("playing");
@@ -557,6 +834,7 @@
       event.currentTarget.textContent = `${state.speed}×`;
     });
     seek.addEventListener("input", (event) => {
+      cancelPendingWordTap();
       cancelPhrasePreview(true);
       audio.currentTime = Number(event.currentTarget.value);
       updateAt(audio.currentTime);
@@ -579,6 +857,8 @@
       updateAt(audio.currentTime);
     });
     document.onkeydown = (event) => {
+      const vocabularyLayer = document.querySelector("#vocabulary-layer");
+      if (vocabularyLayer && !vocabularyLayer.hidden) return;
       if (event.key === "Escape") {
         fontSettings.hidden = true;
         fontButton.classList.remove("active");
@@ -603,6 +883,8 @@
 
   async function init() {
     try {
+      loadVocabulary();
+      ensureVocabularyUi();
       const response = await fetch("data/chapters.json");
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
       state.chapters = await response.json();
