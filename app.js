@@ -3,6 +3,7 @@
 
   const app = document.querySelector("#app");
   const speeds = [0.75, 1, 1.25];
+  const releaseVersion = "20260820-chapters-6-8-cachefix";
   const vocabularyKey = "loop-reader:vocabulary:v1";
   const state = {
     chapters: [],
@@ -32,6 +33,7 @@
   };
 
   const relative = (path) => String(path || "").replace(/^\/+/, "");
+  const versionedData = (path) => `${path}?v=${releaseVersion}`;
   const two = (value) => String(value).padStart(2, "0");
   const formatTime = (value) => {
     if (!Number.isFinite(value)) return "0:00";
@@ -503,7 +505,7 @@
         playerTemplate();
         bindEvents();
       }
-      const response = await fetch(`data/${slug}.json`);
+      const response = await fetch(versionedData(`data/${slug}.json`));
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
       state.chapter = await response.json();
       renderChapter();
@@ -910,7 +912,7 @@
 
   function showError(message, error) {
     console.error(error);
-    app.innerHTML = `<section class="error-card"><span class="brand-mark">L</span><h1>Щось пішло не так</h1><p>${message}</p></section>`;
+    app.innerHTML = `<section class="error-card"><span class="brand-mark">O</span><h1>Щось пішло не так</h1><p>${message}</p></section>`;
   }
 
   async function init() {
@@ -918,8 +920,8 @@
       loadVocabulary();
       ensureVocabularyUi();
       const [chaptersResponse, extrasResponse] = await Promise.all([
-        fetch("data/chapters.json"),
-        fetch("data/extras.json")
+        fetch(versionedData("data/chapters.json")),
+        fetch(versionedData("data/extras.json"))
       ]);
       if (!chaptersResponse.ok) throw new Error(`HTTP ${chaptersResponse.status}`);
       if (!extrasResponse.ok) throw new Error(`HTTP ${extrasResponse.status}`);
