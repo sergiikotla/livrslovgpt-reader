@@ -155,7 +155,7 @@
     if (extra) copy.append(element("span", "contents-model extra-badge", "Поза книжкою"));
     copy.append(element("small", "", titleWithoutModel(item.titleUa, item.model)));
     button.append(
-      element("span", "contents-number", extra ? `E${item.position || item.number}` : two(item.position || item.number)),
+      element("span", "contents-number", extra ? `E${item.position || item.number}` : two(item.number)),
       image,
       copy,
       element("time", "contents-duration", formatDuration(item.duration))
@@ -169,14 +169,14 @@
     cancelPendingWordTap();
     cancelPhrasePreview();
     refs().audio?.pause();
-    document.title = "Зміст · Loop";
+    document.title = "Зміст · Oksana in Ljubljana";
     app.className = "reader-shell contents-view";
     app.innerHTML = `
       <header class="contents-header">
         <div class="contents-brand">
           <span class="contents-brand-identity">
-            <span class="brand-mark" aria-hidden="true">L</span>
-            <span><strong>Loop</strong><small>словенська з перекладом і озвученням</small></span>
+            <span class="brand-mark" aria-hidden="true">O</span>
+            <span><strong>Oksana in Ljubljana</strong><small>словенська з перекладом і озвученням</small></span>
           </span>
           <button class="vocabulary-button" data-open-vocabulary aria-label="Відкрити словничок">
             <span>Слова</span><strong class="vocabulary-count">0</strong>
@@ -187,7 +187,7 @@
         <ol class="contents-list" id="contents-list"></ol>
         <section class="extras-section" aria-labelledby="extras-title">
           <div class="extras-heading">
-            <p>Окремо від історії Loop</p>
+            <p>Окремо від історії Oksana in Ljubljana</p>
             <h2 id="extras-title">Екстра-читання</h2>
             <span>Додаткові словенсько-українські тексти з власним озвученням.</span>
           </div>
@@ -419,8 +419,13 @@
     image.src = relative(next.scenes[0].image);
     image.alt = "";
     const copy = element("span", "next-copy");
+    const nextKicker = isExtra
+      ? `Наступний екстра-текст · E${next.position || next.number}`
+      : next.number === state.chapter.number
+        ? `Інша версія · ${next.level}`
+        : `Наступна глава · ${two(next.number)}`;
     copy.append(
-      element("span", "next-kicker", isExtra ? `Наступний екстра-текст · E${next.position || next.number}` : `Наступна глава · ${two(next.position || next.number)}`),
+      element("span", "next-kicker", nextKicker),
       element("strong", "", next.title),
       element("small", "", next.titleUa)
     );
@@ -434,9 +439,11 @@
     const collection = readingCollection();
     const isExtra = chapter.kind === "extra";
     const position = chapter.position || chapter.number;
-    const progress = (position / collection.length) * 100;
-    document.title = `${chapter.title} · Loop`;
-    document.querySelector("#chapter-position").innerHTML = `<span>${isExtra ? `E${position}` : two(position)}</span><i style="background:linear-gradient(90deg,var(--apricot) ${progress}%,rgba(23,63,58,.15) ${progress}%)"></i><span>${two(collection.length)}</span>`;
+    const chapterTotal = isExtra ? collection.length : Math.max(...collection.map((item) => item.number));
+    const chapterPosition = isExtra ? position : chapter.number;
+    const progress = (chapterPosition / chapterTotal) * 100;
+    document.title = `${chapter.title} · Oksana in Ljubljana`;
+    document.querySelector("#chapter-position").innerHTML = `<span>${isExtra ? `E${position}` : two(chapterPosition)}</span><i style="background:linear-gradient(90deg,var(--apricot) ${progress}%,rgba(23,63,58,.15) ${progress}%)"></i><span>${two(chapterTotal)}</span>`;
     document.querySelector("#eyebrow").textContent = isExtra
       ? `Dodatno branje · ${chapter.level}`
       : chapter.model
@@ -700,7 +707,7 @@
       <aside class="vocabulary-panel" role="dialog" aria-modal="true" aria-labelledby="vocabulary-title">
         <header class="vocabulary-header">
           <div>
-            <p>Loop</p>
+            <p>Oksana in Ljubljana</p>
             <h2 id="vocabulary-title">Мій словничок</h2>
             <span id="vocabulary-total">Збережено: 0</span>
           </div>
