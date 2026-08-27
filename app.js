@@ -3,7 +3,7 @@
 
   const app = document.querySelector("#app");
   const speeds = [0.75, 1, 1.25];
-  const releaseVersion = "20260827-chapter-12";
+  const releaseVersion = "20260827-chapters-13-15";
   const vocabularyKey = "loop-reader:vocabulary:v1";
   const state = {
     chapters: [],
