@@ -3,12 +3,13 @@
 
   const app = document.querySelector("#app");
   const speeds = [0.75, 1, 1.25];
-  const releaseVersion = "20260827-spoilers-from-13-v2";
+  const releaseVersion = "20260827-spoiler-password-v3";
   const vocabularyKey = "loop-reader:vocabulary:v1";
   const spoilerModeKey = "loop-reader:spoiler-free:v1";
   const spoilerProgressKey = "loop-reader:spoiler-free:highest-chapter:v2";
   const spoilerStartChapter = 13;
   const spoilerUnlockThreshold = .9;
+  const spoilerUnlockPassword = "123";
   const state = {
     chapters: [],
     extras: [],
@@ -233,6 +234,36 @@
     list.append(row);
   }
 
+  function appendSpoilerPanel(list) {
+    const row = element("li", "spoiler-boundary");
+    row.innerHTML = `
+      <section class="spoiler-panel" aria-labelledby="spoiler-title">
+        <span class="spoiler-icon" aria-hidden="true">${state.spoilerFree ? "🔒" : "🔓"}</span>
+        <div class="spoiler-copy">
+          <p>Без спойлерів</p>
+          <h2 id="spoiler-title">${state.spoilerFree ? "Наступні глави поки приховані" : "Усі глави відкриті"}</h2>
+          <span>${state.spoilerFree
+            ? "Вони відкриватимуться після 90% прослуховування попередньої."
+            : "Назви та аудіо доступні без обмежень."}</span>
+        </div>
+        <div class="spoiler-actions">
+          ${state.spoilerFree ? `
+            <button class="unlock-all" id="show-unlock-form" type="button">Показати всі глави</button>
+            <form class="spoiler-password" id="spoiler-password-form" hidden>
+              <label for="spoiler-password">Введіть пароль</label>
+              <div>
+                <input id="spoiler-password" name="password" type="password" inputmode="numeric" autocomplete="off" maxlength="3" aria-describedby="spoiler-password-error" />
+                <button class="unlock-all" type="submit">Відкрити</button>
+                <button class="spoiler-cancel" id="cancel-unlock" type="button" aria-label="Скасувати введення пароля">Скасувати</button>
+              </div>
+              <span class="spoiler-error" id="spoiler-password-error" role="alert" hidden>Неправильний пароль</span>
+            </form>` : `
+            <button class="restore-spoilers" id="restore-spoilers" type="button">Знову приховувати непрослухані</button>`}
+        </div>
+      </section>`;
+    list.append(row);
+  }
+
   function showContents(updateHistory = true) {
     cancelPendingWordTap();
     cancelPhrasePreview();
@@ -252,21 +283,6 @@
         </div>
       </header>
       <main class="contents-main">
-        <section class="spoiler-panel" aria-labelledby="spoiler-title">
-          <div class="spoiler-copy">
-            <p>Послідовне читання</p>
-            <h2 id="spoiler-title">Без спойлерів</h2>
-            <span>${state.spoilerFree
-              ? `Глави від ${two(spoilerStartChapter)} відкриваються по черзі після 90% прослуховування попередньої.`
-              : "Режим вимкнено — усі опубліковані глави відкриті."}</span>
-          </div>
-          <div class="spoiler-actions">
-            <button class="spoiler-toggle${state.spoilerFree ? " active" : ""}" id="spoiler-mode-toggle" role="switch" aria-checked="${state.spoilerFree}">
-              <span>${state.spoilerFree ? "Увімкнено" : "Вимкнено"}</span><i aria-hidden="true"></i>
-            </button>
-            <button class="unlock-all" id="unlock-all"${state.spoilerFree ? "" : " hidden"}>Відкрити всі глави</button>
-          </div>
-        </section>
         <ol class="contents-list" id="contents-list"></ol>
         <section class="extras-section" aria-labelledby="extras-title">
           <div class="extras-heading">
@@ -279,19 +295,50 @@
       </main>`;
 
     const list = document.querySelector("#contents-list");
-    state.chapters.forEach((item) => appendContentsItem(list, item));
+    let spoilerPanelAdded = false;
+    state.chapters.forEach((item) => {
+      if (!spoilerPanelAdded && item.number >= spoilerStartChapter) {
+        appendSpoilerPanel(list);
+        spoilerPanelAdded = true;
+      }
+      appendContentsItem(list, item);
+    });
     const extrasList = document.querySelector("#extras-list");
     state.extras.forEach((item) => appendContentsItem(extrasList, item, true));
 
-    document.querySelector("#spoiler-mode-toggle").addEventListener("click", () => {
-      setSpoilerMode(!state.spoilerFree);
-      showContents(false);
-      showToast(state.spoilerFree ? "Режим без спойлерів увімкнено" : "Усі глави відкрито");
+    document.querySelector("#show-unlock-form")?.addEventListener("click", (event) => {
+      event.currentTarget.hidden = true;
+      const form = document.querySelector("#spoiler-password-form");
+      form.hidden = false;
+      form.querySelector("input").focus();
     });
-    document.querySelector("#unlock-all")?.addEventListener("click", () => {
+    document.querySelector("#cancel-unlock")?.addEventListener("click", () => {
+      document.querySelector("#spoiler-password-form").hidden = true;
+      document.querySelector("#show-unlock-form").hidden = false;
+      document.querySelector("#show-unlock-form").focus();
+    });
+    document.querySelector("#spoiler-password")?.addEventListener("input", (event) => {
+      event.currentTarget.removeAttribute("aria-invalid");
+      document.querySelector("#spoiler-password-error").hidden = true;
+    });
+    document.querySelector("#spoiler-password-form")?.addEventListener("submit", (event) => {
+      event.preventDefault();
+      const input = event.currentTarget.elements.password;
+      const error = document.querySelector("#spoiler-password-error");
+      if (input.value !== spoilerUnlockPassword) {
+        input.setAttribute("aria-invalid", "true");
+        error.hidden = false;
+        input.select();
+        return;
+      }
       setSpoilerMode(false);
       showContents(false);
       showToast("Усі глави відкрито");
+    });
+    document.querySelector("#restore-spoilers")?.addEventListener("click", () => {
+      setSpoilerMode(true);
+      showContents(false);
+      showToast("Непрослухані глави знову приховано");
     });
 
     bindVocabularyButtons();

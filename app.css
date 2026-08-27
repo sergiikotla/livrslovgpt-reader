@@ -129,21 +129,26 @@ button { color: inherit; }
 .contents-brand strong { display: block; color: var(--forest); font: 700 30px/1 Georgia, serif; letter-spacing: -.035em; }
 .contents-brand small { display: block; margin-top: 9px; color: #91877f; font-size: 16px; }
 .contents-main { width: min(1180px, calc(100% - 48px)); margin: 70px auto 0; }
-.spoiler-panel { margin: 0 0 34px; padding: 23px 25px; display: flex; align-items: center; justify-content: space-between; gap: 28px; border: 1px solid rgba(23, 63, 58, .12); border-radius: 24px; background: rgba(255, 253, 248, .78); box-shadow: 0 9px 28px rgba(53, 73, 66, .06); }
+.spoiler-boundary { padding: 34px 0; border-bottom: 1px solid rgba(23, 63, 58, .14); }
+.spoiler-panel { padding: 23px 25px; display: flex; align-items: center; gap: 18px; border: 1px solid rgba(23, 63, 58, .12); border-radius: 24px; background: rgba(255, 253, 248, .78); box-shadow: 0 9px 28px rgba(53, 73, 66, .06); }
+.spoiler-icon { flex: 0 0 auto; display: grid; width: 42px; height: 42px; place-items: center; border-radius: 50%; background: rgba(23, 63, 58, .07); font-size: 18px; }
 .spoiler-copy { min-width: 0; }
 .spoiler-copy p { margin: 0 0 6px; color: #b96d45; font-size: 9px; font-weight: 850; letter-spacing: .15em; text-transform: uppercase; }
 .spoiler-copy h2 { margin: 0; color: var(--forest); font: 500 25px/1.1 Georgia, serif; letter-spacing: -.025em; }
 .spoiler-copy span { display: block; margin-top: 8px; color: var(--muted); font-size: 13px; line-height: 1.45; }
-.spoiler-actions { flex: 0 0 auto; display: flex; align-items: center; gap: 10px; }
-.spoiler-toggle { min-height: 42px; padding: 7px 9px 7px 13px; display: inline-flex; align-items: center; gap: 9px; border: 1px solid rgba(23, 63, 58, .14); border-radius: 22px; background: white; color: var(--muted); font-size: 10px; font-weight: 800; cursor: pointer; }
-.spoiler-toggle i { position: relative; width: 36px; height: 20px; border-radius: 12px; background: #d9dfdc; transition: background .2s ease; }
-.spoiler-toggle i::after { content: ""; position: absolute; top: 4px; left: 4px; width: 12px; height: 12px; border-radius: 50%; background: white; box-shadow: 0 1px 4px rgba(23, 63, 58, .18); transition: transform .2s ease; }
-.spoiler-toggle.active { color: var(--forest); }
-.spoiler-toggle.active i { background: var(--forest); }
-.spoiler-toggle.active i::after { transform: translateX(16px); }
-.unlock-all { min-height: 42px; padding: 0 15px; border: 1px solid rgba(236, 125, 93, .28); border-radius: 22px; background: rgba(236, 125, 93, .08); color: #a9583b; font-size: 10px; font-weight: 800; cursor: pointer; }
-.unlock-all:hover { background: rgba(236, 125, 93, .16); }
+.spoiler-actions { flex: 0 0 auto; margin-left: auto; }
+.unlock-all, .restore-spoilers { min-height: 42px; padding: 0 15px; border: 1px solid rgba(236, 125, 93, .28); border-radius: 22px; background: rgba(236, 125, 93, .08); color: #a9583b; font-size: 10px; font-weight: 800; cursor: pointer; }
+.unlock-all:hover, .restore-spoilers:hover { background: rgba(236, 125, 93, .16); }
 .unlock-all[hidden] { display: none; }
+.spoiler-password { min-width: 310px; }
+.spoiler-password > label { display: block; margin-bottom: 7px; color: var(--forest); font-size: 11px; font-weight: 800; }
+.spoiler-password > div { display: flex; align-items: center; gap: 7px; }
+.spoiler-password input { width: 90px; height: 42px; padding: 0 13px; border: 1px solid rgba(23, 63, 58, .2); border-radius: 14px; background: white; color: var(--forest); font: 700 18px/1 Inter, sans-serif; letter-spacing: .18em; outline: none; }
+.spoiler-password input:focus { border-color: var(--forest-soft); box-shadow: 0 0 0 3px rgba(23, 63, 58, .09); }
+.spoiler-password input[aria-invalid="true"] { border-color: #b95a47; }
+.spoiler-cancel { min-height: 38px; padding: 0 7px; border: 0; background: transparent; color: var(--muted); font-size: 10px; font-weight: 750; cursor: pointer; }
+.spoiler-error { display: block; margin-top: 6px; color: #b95a47; font-size: 11px; font-weight: 700; }
+.spoiler-error[hidden], .spoiler-password[hidden] { display: none; }
 .contents-list { margin: 0; padding: 0; list-style: none; }
 .contents-item { border-bottom: 1px solid rgba(23, 63, 58, .14); }
 .contents-link { width: 100%; min-height: 140px; padding: 18px 6px; display: grid; grid-template-columns: 58px 106px minmax(0, 1fr) 70px; gap: 22px; align-items: center; border: 0; background: transparent; text-align: left; cursor: pointer; transition: background .18s ease, padding .18s ease; }
@@ -300,10 +305,15 @@ body.vocabulary-open { overflow: hidden; }
   .contents-brand strong { font-size: 26px; }
   .contents-brand small { margin-top: 7px; font-size: 13px; }
   .contents-main { width: calc(100% - 28px); margin-top: 34px; }
-  .spoiler-panel { margin-bottom: 22px; padding: 19px 17px; align-items: stretch; flex-direction: column; gap: 16px; border-radius: 20px; }
+  .spoiler-boundary { padding: 24px 0; }
+  .spoiler-panel { padding: 19px 17px; align-items: flex-start; flex-wrap: wrap; gap: 12px; border-radius: 20px; }
+  .spoiler-icon { width: 38px; height: 38px; font-size: 16px; }
+  .spoiler-copy { width: calc(100% - 50px); }
   .spoiler-copy h2 { font-size: 23px; }
-  .spoiler-actions { justify-content: space-between; }
-  .spoiler-toggle, .unlock-all { min-height: 40px; }
+  .spoiler-actions { width: 100%; margin: 4px 0 0; }
+  .unlock-all, .restore-spoilers { min-height: 40px; }
+  .spoiler-password { min-width: 0; width: 100%; }
+  .spoiler-password > div { flex-wrap: wrap; }
   .contents-link { min-height: 112px; padding: 14px 2px; grid-template-columns: 22px 78px minmax(0, 1fr); grid-template-rows: auto auto; column-gap: 10px; row-gap: 0; }
   .contents-link:hover { padding-inline: 6px; }
   .contents-number { grid-column: 1; grid-row: 1 / span 2; align-self: center; font-size: 14px; }
