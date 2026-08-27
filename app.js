@@ -3,8 +3,12 @@
 
   const app = document.querySelector("#app");
   const speeds = [0.75, 1, 1.25];
-  const releaseVersion = "20260827-chapters-13-15";
+  const releaseVersion = "20260827-chapters-16-18-spoilers";
   const vocabularyKey = "loop-reader:vocabulary:v1";
+  const spoilerModeKey = "loop-reader:spoiler-free:v1";
+  const spoilerProgressKey = "loop-reader:spoiler-free:highest-chapter:v1";
+  const spoilerStartChapter = 13;
+  const spoilerUnlockThreshold = .9;
   const state = {
     chapters: [],
     extras: [],
@@ -29,7 +33,9 @@
     vocabulary: [],
     pendingWordTap: null,
     vocabularyTrigger: null,
-    toastTimer: null
+    toastTimer: null,
+    spoilerFree: true,
+    highestUnlockedChapter: spoilerStartChapter - 1
   };
 
   const relative = (path) => String(path || "").replace(/^\/+/, "");
@@ -51,6 +57,56 @@
   const allReadings = () => [...state.chapters, ...state.extras];
   const readingCollection = () => state.chapter?.kind === "extra" ? state.extras : state.chapters;
   const findReading = (slug) => allReadings().find((item) => item.slug === slug);
+  const isChapterLocked = (item) => Boolean(
+    item
+      && item.kind !== "extra"
+      && state.spoilerFree
+      && item.number >= spoilerStartChapter
+      && item.number > state.highestUnlockedChapter
+  );
+
+  function saveSpoilerProgress() {
+    localStorage.setItem(spoilerProgressKey, String(state.highestUnlockedChapter));
+  }
+
+  function restoreSpoilerProgress() {
+    state.spoilerFree = localStorage.getItem(spoilerModeKey) !== "false";
+    const savedHighest = Number(localStorage.getItem(spoilerProgressKey));
+    if (Number.isFinite(savedHighest)) {
+      state.highestUnlockedChapter = Math.max(spoilerStartChapter - 1, Math.floor(savedHighest));
+    }
+
+    state.chapters.forEach((item) => {
+      const savedTime = Number(localStorage.getItem(`loop-reader:${item.slug}:time`));
+      if (Number.isFinite(savedTime) && item.duration > 0 && savedTime / item.duration >= spoilerUnlockThreshold) {
+        state.highestUnlockedChapter = Math.max(state.highestUnlockedChapter, item.number + 1);
+      }
+    });
+
+    const lastReading = findReading(localStorage.getItem("loop-reader:last-chapter"));
+    if (lastReading?.kind !== "extra" && lastReading?.number >= spoilerStartChapter) {
+      state.highestUnlockedChapter = Math.max(state.highestUnlockedChapter, lastReading.number);
+    }
+    saveSpoilerProgress();
+  }
+
+  function setSpoilerMode(enabled) {
+    state.spoilerFree = Boolean(enabled);
+    localStorage.setItem(spoilerModeKey, String(state.spoilerFree));
+  }
+
+  function unlockNextChapter(time, duration) {
+    if (!state.chapter || state.chapter.kind === "extra" || state.chapter.number < spoilerStartChapter - 1) return;
+    if (!Number.isFinite(duration) || duration <= 0 || time / duration < spoilerUnlockThreshold) return;
+    const nextNumber = state.chapter.number + 1;
+    if (nextNumber <= state.highestUnlockedChapter) return;
+    state.highestUnlockedChapter = nextNumber;
+    saveSpoilerProgress();
+    if (state.spoilerFree) {
+      renderNextChapter();
+      showToast(`Главу ${two(nextNumber)} відкрито`);
+    }
+  }
 
   function element(tag, className, text) {
     const node = document.createElement(tag);
@@ -145,8 +201,9 @@
   }
 
   function appendContentsItem(list, item, extra = false) {
-    const row = element("li", `contents-item${extra ? " extra-item" : ""}`);
-    const button = element("button", "contents-link");
+    const locked = !extra && isChapterLocked(item);
+    const row = element("li", `contents-item${extra ? " extra-item" : ""}${locked ? " locked-item" : ""}`);
+    const button = element("button", `contents-link${locked ? " locked" : ""}`);
     const image = element("img", "contents-cover");
     image.src = relative(item.scenes[0].image);
     image.alt = "";
@@ -156,13 +213,22 @@
     if (item.model) copy.append(element("span", "contents-model", item.model));
     if (extra) copy.append(element("span", "contents-model extra-badge", "Поза книжкою"));
     copy.append(element("small", "", titleWithoutModel(item.titleUa, item.model)));
+    if (locked) copy.setAttribute("aria-hidden", "true");
     button.append(
       element("span", "contents-number", extra ? `E${item.position || item.number}` : two(item.number)),
       image,
       copy,
-      element("time", "contents-duration", formatDuration(item.duration))
+      locked
+        ? element("span", "contents-lock", "Закрито")
+        : element("time", "contents-duration", formatDuration(item.duration))
     );
-    button.addEventListener("click", () => loadChapter(item.slug, true));
+    if (locked) {
+      button.setAttribute("aria-disabled", "true");
+      button.setAttribute("aria-label", `Глава ${item.number} заблокована. Дослухайте главу ${item.number - 1} до дев'яноста відсотків.`);
+      button.addEventListener("click", () => showToast(`Спочатку дослухайте главу ${two(item.number - 1)} до 90%`));
+    } else {
+      button.addEventListener("click", () => loadChapter(item.slug, true));
+    }
     row.append(button);
     list.append(row);
   }
@@ -186,6 +252,21 @@
         </div>
       </header>
       <main class="contents-main">
+        <section class="spoiler-panel" aria-labelledby="spoiler-title">
+          <div class="spoiler-copy">
+            <p>Послідовне читання</p>
+            <h2 id="spoiler-title">Без спойлерів</h2>
+            <span>${state.spoilerFree
+              ? `Глави від ${two(spoilerStartChapter)} відкриваються по черзі після 90% прослуховування попередньої.`
+              : "Режим вимкнено — усі опубліковані глави відкриті."}</span>
+          </div>
+          <div class="spoiler-actions">
+            <button class="spoiler-toggle${state.spoilerFree ? " active" : ""}" id="spoiler-mode-toggle" role="switch" aria-checked="${state.spoilerFree}">
+              <span>${state.spoilerFree ? "Увімкнено" : "Вимкнено"}</span><i aria-hidden="true"></i>
+            </button>
+            <button class="unlock-all" id="unlock-all"${state.spoilerFree ? "" : " hidden"}>Відкрити всі глави</button>
+          </div>
+        </section>
         <ol class="contents-list" id="contents-list"></ol>
         <section class="extras-section" aria-labelledby="extras-title">
           <div class="extras-heading">
@@ -201,6 +282,17 @@
     state.chapters.forEach((item) => appendContentsItem(list, item));
     const extrasList = document.querySelector("#extras-list");
     state.extras.forEach((item) => appendContentsItem(extrasList, item, true));
+
+    document.querySelector("#spoiler-mode-toggle").addEventListener("click", () => {
+      setSpoilerMode(!state.spoilerFree);
+      showContents(false);
+      showToast(state.spoilerFree ? "Режим без спойлерів увімкнено" : "Усі глави відкрито");
+    });
+    document.querySelector("#unlock-all")?.addEventListener("click", () => {
+      setSpoilerMode(false);
+      showContents(false);
+      showToast("Усі глави відкрито");
+    });
 
     bindVocabularyButtons();
 
@@ -416,6 +508,24 @@
       return;
     }
 
+    if (isChapterLocked(next)) {
+      const button = element("button", "next-chapter-card locked");
+      const image = element("img");
+      image.src = relative(next.scenes[0].image);
+      image.alt = "";
+      const copy = element("span", "next-copy");
+      copy.append(
+        element("span", "next-kicker", `Наступна глава · ${two(next.number)}`),
+        element("strong", "", "Поки що закрито"),
+        element("small", "", `Дослухайте главу ${two(next.number - 1)} до 90%`)
+      );
+      button.setAttribute("aria-disabled", "true");
+      button.append(image, copy, element("span", "next-arrow", "⌑"));
+      button.addEventListener("click", () => showToast(`Спочатку дослухайте главу ${two(next.number - 1)} до 90%`));
+      container.append(button);
+      return;
+    }
+
     const button = element("button", "next-chapter-card");
     const image = element("img");
     image.src = relative(next.scenes[0].image);
@@ -499,6 +609,11 @@
 
   async function loadChapter(slug, userInitiated = false) {
     try {
+      const target = findReading(slug);
+      if (isChapterLocked(target)) {
+        showToast(`Спочатку дослухайте главу ${two(target.number - 1)} до 90%`);
+        return;
+      }
       cancelPendingWordTap();
       refs().audio?.pause();
       if (!document.querySelector("#narration")) {
@@ -872,6 +987,7 @@
       cancelPhrasePreview(true);
       audio.currentTime = Number(event.currentTarget.value);
       updateAt(audio.currentTime);
+      unlockNextChapter(audio.currentTime, Number.isFinite(audio.duration) ? audio.duration : state.chapter?.duration);
     });
     audio.addEventListener("play", () => {
       if (state.phraseEnd === null) {
@@ -880,9 +996,13 @@
       }
     });
     audio.addEventListener("pause", () => { player.classList.remove("playing"); play.setAttribute("aria-label", "Відтворити"); });
-    audio.addEventListener("ended", () => player.classList.remove("playing"));
+    audio.addEventListener("ended", () => {
+      player.classList.remove("playing");
+      unlockNextChapter(audio.duration || state.chapter?.duration, audio.duration || state.chapter?.duration);
+    });
     audio.addEventListener("timeupdate", () => {
       updateAt(audio.currentTime);
+      unlockNextChapter(audio.currentTime, Number.isFinite(audio.duration) ? audio.duration : state.chapter?.duration);
       if (Math.floor(audio.currentTime) % 5 === 0) localStorage.setItem(chapterProgressKey(), String(audio.currentTime));
     });
     audio.addEventListener("loadedmetadata", () => {
@@ -927,18 +1047,29 @@
       if (!extrasResponse.ok) throw new Error(`HTTP ${extrasResponse.status}`);
       state.chapters = await chaptersResponse.json();
       state.extras = await extrasResponse.json();
+      restoreSpoilerProgress();
       const savedFontSize = localStorage.getItem("loop-reader:font-size");
       if (["small", "medium", "large"].includes(savedFontSize)) state.fontSize = savedFontSize;
       state.translationBold = localStorage.getItem("loop-reader:translation-bold") === "true";
       state.readerMode = localStorage.getItem("loop-reader:mode") === "book" ? "book" : "study";
       const hash = location.hash.slice(1);
-      const initial = findReading(hash)?.slug;
-      if (initial) await loadChapter(initial);
-      else showContents(false);
+      const initial = findReading(hash);
+      if (initial && !isChapterLocked(initial)) await loadChapter(initial.slug);
+      else {
+        showContents(false);
+        if (initial && isChapterLocked(initial)) {
+          history.replaceState(null, "", "#contents");
+          showToast(`Спочатку дослухайте главу ${two(initial.number - 1)} до 90%`);
+        }
+      }
 
       window.addEventListener("popstate", () => {
         const target = findReading(location.hash.slice(1));
-        if (target) loadChapter(target.slug, false);
+        if (target && !isChapterLocked(target)) loadChapter(target.slug, false);
+        else if (target) {
+          showContents(false);
+          showToast(`Спочатку дослухайте главу ${two(target.number - 1)} до 90%`);
+        }
         else showContents(false);
       });
     } catch (error) {
