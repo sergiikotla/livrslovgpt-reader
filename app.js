@@ -3,7 +3,7 @@
 
   const app = document.querySelector("#app");
   const speeds = [0.75, 1, 1.25];
-  const releaseVersion = "20260827-spoiler-password-v3";
+  const releaseVersion = "20260827-chapters-22-24-v1";
   const vocabularyKey = "loop-reader:vocabulary:v1";
   const spoilerModeKey = "loop-reader:spoiler-free:v1";
   const spoilerProgressKey = "loop-reader:spoiler-free:highest-chapter:v2";
