@@ -3,7 +3,7 @@
 
   const app = document.querySelector("#app");
   const speeds = [0.75, 1, 1.25];
-  const releaseVersion = "20260827-chapters-22-24-v1";
+  const releaseVersion = "20260828-text-chapters-25-30-v1";
   const vocabularyKey = "loop-reader:vocabulary:v1";
   const spoilerModeKey = "loop-reader:spoiler-free:v1";
   const spoilerProgressKey = "loop-reader:spoiler-free:highest-chapter:v2";
@@ -58,6 +58,9 @@
   const allReadings = () => [...state.chapters, ...state.extras];
   const readingCollection = () => state.chapter?.kind === "extra" ? state.extras : state.chapters;
   const findReading = (slug) => allReadings().find((item) => item.slug === slug);
+  const hasAudio = (item) => Boolean(item?.audio) && Number.isFinite(item?.duration) && item.duration > 0;
+  const textReadKey = (number) => `loop-reader:chapter:${number}:read`;
+  const isTextChapterRead = (number) => localStorage.getItem(textReadKey(number)) === "true";
   const isChapterLocked = (item) => Boolean(
     item
       && item.kind !== "extra"
@@ -79,7 +82,10 @@
 
     state.chapters.forEach((item) => {
       const savedTime = Number(localStorage.getItem(`loop-reader:${item.slug}:time`));
-      if (Number.isFinite(savedTime) && item.duration > 0 && savedTime / item.duration >= spoilerUnlockThreshold) {
+      if (hasAudio(item) && Number.isFinite(savedTime) && savedTime / item.duration >= spoilerUnlockThreshold) {
+        state.highestUnlockedChapter = Math.max(state.highestUnlockedChapter, item.number + 1);
+      }
+      if (!hasAudio(item) && isTextChapterRead(item.number)) {
         state.highestUnlockedChapter = Math.max(state.highestUnlockedChapter, item.number + 1);
       }
     });
@@ -107,6 +113,40 @@
       renderNextChapter();
       showToast(`Главу ${two(nextNumber)} відкрито`);
     }
+  }
+
+  function markTextChapterRead() {
+    if (!state.chapter || hasAudio(state.chapter) || state.chapter.kind === "extra") return;
+    localStorage.setItem(textReadKey(state.chapter.number), "true");
+    const nextNumber = state.chapter.number + 1;
+    if (nextNumber > state.highestUnlockedChapter) {
+      state.highestUnlockedChapter = nextNumber;
+      saveSpoilerProgress();
+      if (state.spoilerFree && nextNumber <= Math.max(...state.chapters.map((item) => item.number))) {
+        showToast(`Главу ${two(nextNumber)} відкрито`);
+      } else {
+        showToast("Позначено як прочитану");
+      }
+    } else {
+      showToast("Позначено як прочитану");
+    }
+    renderTextCompletion();
+    renderNextChapter();
+  }
+
+  function lockedChapterMessage(item) {
+    const previousNumber = item.number - 1;
+    const previousEditions = state.chapters.filter((chapter) => chapter.number === previousNumber);
+    const previousHasAudio = previousEditions.some(hasAudio);
+    return previousHasAudio
+      ? {
+          short: `Дослухайте главу ${two(previousNumber)} до 90%`,
+          detail: `Глава ${item.number} заблокована. Дослухайте главу ${previousNumber} до дев'яноста відсотків.`
+        }
+      : {
+          short: `Позначте главу ${two(previousNumber)} прочитаною`,
+          detail: `Глава ${item.number} заблокована. Позначте главу ${previousNumber} прочитаною.`
+        };
   }
 
   function element(tag, className, text) {
@@ -160,7 +200,7 @@
         <aside class="scene-strip" id="scene-strip" aria-label="Сцени тексту"></aside>
         <article class="reading-card" id="reading-card">
           <div class="reading-toolbar">
-            <p><span class="live-dot"></span> Слухай і читай</p>
+            <p id="reading-status"><span class="live-dot"></span> Слухай і читай</p>
             <div class="reader-actions">
               <div class="mode-switch" role="group" aria-label="Режим читання">
                 <button class="active" id="study-mode" aria-pressed="true">Фрази</button>
@@ -174,8 +214,9 @@
           <div class="book-text" id="book-text" hidden></div>
         </article>
       </section>
+      <section class="text-completion" id="text-completion" aria-label="Завершення текстової глави"></section>
       <section class="next-chapter" id="next-chapter" aria-label="Навігація між главами"></section>
-      <div class="player-wrap">
+      <div class="player-wrap" id="player-wrap">
         <div class="player" id="player">
           <button class="play-button" id="play-button" aria-label="Відтворити"><span class="play-icon"></span></button>
           <div class="track-info">
@@ -221,12 +262,13 @@
       copy,
       locked
         ? element("span", "contents-lock", "Закрито")
-        : element("time", "contents-duration", formatDuration(item.duration))
+        : element(hasAudio(item) ? "time" : "span", "contents-duration", hasAudio(item) ? formatDuration(item.duration) : "Текст")
     );
     if (locked) {
+      const requirement = lockedChapterMessage(item);
       button.setAttribute("aria-disabled", "true");
-      button.setAttribute("aria-label", `Глава ${item.number} заблокована. Дослухайте главу ${item.number - 1} до дев'яноста відсотків.`);
-      button.addEventListener("click", () => showToast(`Спочатку дослухайте главу ${two(item.number - 1)} до 90%`));
+      button.setAttribute("aria-label", requirement.detail);
+      button.addEventListener("click", () => showToast(requirement.short));
     } else {
       button.addEventListener("click", () => loadChapter(item.slug, true));
     }
@@ -243,8 +285,8 @@
           <p>Без спойлерів</p>
           <h2 id="spoiler-title">${state.spoilerFree ? "Наступні глави поки приховані" : "Усі глави відкриті"}</h2>
           <span>${state.spoilerFree
-            ? "Вони відкриватимуться після 90% прослуховування попередньої."
-            : "Назви та аудіо доступні без обмежень."}</span>
+            ? "Вони відкриватимуться після 90% прослуховування або позначення текстової глави прочитаною."
+            : "Назви, тексти й аудіо доступні без обмежень."}</span>
         </div>
         <div class="spoiler-actions">
           ${state.spoilerFree ? `
@@ -258,7 +300,7 @@
               </div>
               <span class="spoiler-error" id="spoiler-password-error" role="alert" hidden>Неправильний пароль</span>
             </form>` : `
-            <button class="restore-spoilers" id="restore-spoilers" type="button">Знову приховувати непрослухані</button>`}
+            <button class="restore-spoilers" id="restore-spoilers" type="button">Знову приховувати непрочитані</button>`}
         </div>
       </section>`;
     list.append(row);
@@ -275,7 +317,7 @@
         <div class="contents-brand">
           <span class="contents-brand-identity">
             <span class="brand-mark" aria-hidden="true">O</span>
-            <span><strong>Oksana in Ljubljana</strong><small>словенська з перекладом і озвученням</small></span>
+            <span><strong>Oksana in Ljubljana</strong><small>словенська з перекладом, текстом і аудіо</small></span>
           </span>
           <button class="vocabulary-button" data-open-vocabulary aria-label="Відкрити словничок">
             <span>Слова</span><strong class="vocabulary-count">0</strong>
@@ -373,13 +415,19 @@
   function renderScenes() {
     const { scenes } = refs();
     scenes.replaceChildren();
+    const audioAvailable = hasAudio(state.chapter);
     state.sceneNodes = state.chapter.scenes.map((scene) => {
       const button = element("button", "scene");
       const image = element("img");
       image.src = relative(scene.image);
       image.alt = `Сцена ${scene.number}`;
       button.append(image, element("span", "", two(scene.number)));
-      button.addEventListener("click", () => playFrom(scene.start));
+      if (audioAvailable) {
+        button.addEventListener("click", () => playFrom(scene.start));
+      } else {
+        button.classList.add("text-only");
+        button.disabled = true;
+      }
       scenes.append(button);
       return button;
     });
@@ -391,8 +439,9 @@
     state.segmentNodes = [];
     state.wordNodes = [];
 
+    const audioAvailable = hasAudio(state.chapter);
     state.chapter.segments.forEach((segment) => {
-      const wrapper = element("div", "text-segment");
+      const wrapper = element("div", `text-segment${audioAvailable ? "" : " text-only"}`);
       const slovene = element("p", "slovene");
       const words = [];
 
@@ -403,16 +452,18 @@
       });
 
       wrapper.append(slovene, element("p", "ukrainian", segment.ua));
-      wrapper.tabIndex = 0;
-      wrapper.setAttribute("role", "button");
-      wrapper.setAttribute("aria-label", `Прослухати фразу: ${segment.sl}`);
-      wrapper.addEventListener("click", () => playPhrase(segment));
-      wrapper.addEventListener("keydown", (event) => {
-        if (event.target === wrapper && (event.key === "Enter" || event.key === " ")) {
-          event.preventDefault();
-          playPhrase(segment);
-        }
-      });
+      if (audioAvailable) {
+        wrapper.tabIndex = 0;
+        wrapper.setAttribute("role", "button");
+        wrapper.setAttribute("aria-label", `Прослухати фразу: ${segment.sl}`);
+        wrapper.addEventListener("click", () => playPhrase(segment));
+        wrapper.addEventListener("keydown", (event) => {
+          if (event.target === wrapper && (event.key === "Enter" || event.key === " ")) {
+            event.preventDefault();
+            playPhrase(segment);
+          }
+        });
+      }
       story.append(wrapper);
       state.segmentNodes.push(wrapper);
       state.wordNodes.push(words);
@@ -479,9 +530,13 @@
 
   function createInteractiveWord(word, segment, className) {
     const button = element("button", className, word.text);
-    button.dataset.start = String(word.start);
-    button.dataset.end = String(word.end);
-    button.setAttribute("aria-label", `${word.text}. Натисніть один раз, щоб прослухати речення; двічі — щоб додати слово.`);
+    if (hasAudio(state.chapter)) {
+      button.dataset.start = String(word.start);
+      button.dataset.end = String(word.end);
+      button.setAttribute("aria-label", `${word.text}. Натисніть один раз, щоб прослухати речення; двічі — щоб додати слово.`);
+    } else {
+      button.setAttribute("aria-label", `${word.text}. Натисніть, щоб додати слово.`);
+    }
     button.addEventListener("click", (event) => handleWordTap(event, button, word, segment));
     button.addEventListener("keydown", (event) => {
       if (event.shiftKey && (event.key === "Enter" || event.key === " ")) {
@@ -494,6 +549,10 @@
 
   function handleWordTap(event, button, word, segment) {
     event.stopPropagation();
+    if (!hasAudio(state.chapter)) {
+      addVocabularyWord(word.text, segment);
+      return;
+    }
     if (event.detail === 0) {
       playPhrase(segment);
       return;
@@ -532,7 +591,30 @@
     document.querySelector("#book-mode").classList.toggle("active", isBook);
     document.querySelector("#book-mode").setAttribute("aria-pressed", String(isBook));
     if (persist) localStorage.setItem("loop-reader:mode", state.readerMode);
-    if (state.chapter) updateAt(refs().audio.currentTime || 0);
+    if (state.chapter && hasAudio(state.chapter)) updateAt(refs().audio.currentTime || 0);
+  }
+
+  function renderTextCompletion() {
+    const container = document.querySelector("#text-completion");
+    container.replaceChildren();
+    if (!state.chapter || state.chapter.kind === "extra" || hasAudio(state.chapter)) {
+      container.hidden = true;
+      return;
+    }
+
+    container.hidden = false;
+    const completed = isTextChapterRead(state.chapter.number);
+    const panel = element("div", `text-completion-card${completed ? " completed" : ""}`);
+    const copy = element("span", "text-completion-copy");
+    copy.append(
+      element("span", "next-kicker", completed ? "Глава прочитана" : "Текстова версія"),
+      element("strong", "", completed ? "Наступна глава відкрита" : "Завершили читати?")
+    );
+    const button = element("button", "text-completion-button", completed ? "✓ Прочитано" : "Позначити прочитаною");
+    button.disabled = completed;
+    if (!completed) button.addEventListener("click", markTextChapterRead);
+    panel.append(copy, button);
+    container.append(panel);
   }
 
   function renderNextChapter() {
@@ -556,6 +638,7 @@
     }
 
     if (isChapterLocked(next)) {
+      const requirement = lockedChapterMessage(next);
       const button = element("button", "next-chapter-card locked");
       const image = element("img");
       image.src = relative(next.scenes[0].image);
@@ -564,11 +647,11 @@
       copy.append(
         element("span", "next-kicker", `Наступна глава · ${two(next.number)}`),
         element("strong", "", "Поки що закрито"),
-        element("small", "", `Дослухайте главу ${two(next.number - 1)} до 90%`)
+        element("small", "", requirement.short)
       );
       button.setAttribute("aria-disabled", "true");
       button.append(image, copy, element("span", "next-arrow", "⌑"));
-      button.addEventListener("click", () => showToast(`Спочатку дослухайте главу ${two(next.number - 1)} до 90%`));
+      button.addEventListener("click", () => showToast(requirement.short));
       container.append(button);
       return;
     }
@@ -588,7 +671,12 @@
       element("strong", "", next.title),
       element("small", "", next.titleUa)
     );
-    button.append(image, copy, element("time", "", formatDuration(next.duration)), element("span", "next-arrow", "→"));
+    button.append(
+      image,
+      copy,
+      element(hasAudio(next) ? "time" : "span", hasAudio(next) ? "" : "text-version-label", hasAudio(next) ? formatDuration(next.duration) : "Текст"),
+      element("span", "next-arrow", "→")
+    );
     button.addEventListener("click", () => loadChapter(next.slug, true));
     container.append(button);
   }
@@ -600,7 +688,9 @@
     const position = chapter.position || chapter.number;
     const chapterTotal = isExtra ? collection.length : Math.max(...collection.map((item) => item.number));
     const chapterPosition = isExtra ? position : chapter.number;
+    const audioAvailable = hasAudio(chapter);
     const progress = (chapterPosition / chapterTotal) * 100;
+    app.classList.toggle("text-only", !audioAvailable);
     document.title = `${chapter.title} · Oksana in Ljubljana`;
     document.querySelector("#chapter-position").innerHTML = `<span>${isExtra ? `E${position}` : two(chapterPosition)}</span><i style="background:linear-gradient(90deg,var(--apricot) ${progress}%,rgba(23,63,58,.15) ${progress}%)"></i><span>${two(chapterTotal)}</span>`;
     document.querySelector("#eyebrow").textContent = isExtra
@@ -610,8 +700,13 @@
         : `${chapter.number}. poglavje · ${chapter.level}`;
     document.querySelector("#chapter-title").textContent = chapter.title;
     document.querySelector("#chapter-subtitle").textContent = chapter.subtitle;
-    document.querySelector("#chapter-duration").textContent = `${Math.ceil(chapter.duration / 60)} min`;
+    document.querySelector("#chapter-duration").textContent = audioAvailable ? `${Math.ceil(chapter.duration / 60)} min` : "Текстова версія";
     document.querySelector("#track-title").textContent = chapter.title;
+    document.querySelector("#reading-status").innerHTML = audioAvailable
+      ? '<span class="live-dot"></span> Слухай і читай'
+      : '<span class="live-dot text-dot"></span> Читай у своєму темпі';
+    document.querySelector("#autoscroll-toggle").hidden = !audioAvailable;
+    document.querySelector("#player-wrap").hidden = !audioAvailable;
 
     const heroSection = document.querySelector(".chapter-hero");
     heroSection.classList.toggle("comparison", Boolean(chapter.model));
@@ -626,9 +721,14 @@
     const { audio, seek, player } = refs();
     cancelPhrasePreview();
     audio.pause();
-    audio.src = relative(chapter.audio);
-    audio.playbackRate = state.speed;
-    seek.max = String(chapter.duration || 1);
+    if (audioAvailable) {
+      audio.src = relative(chapter.audio);
+      audio.playbackRate = state.speed;
+    } else {
+      audio.removeAttribute("src");
+      audio.load();
+    }
+    seek.max = String(audioAvailable ? chapter.duration : 1);
     seek.value = "0";
     seek.style.setProperty("--progress", "0%");
     player.classList.remove("playing");
@@ -646,8 +746,10 @@
     renderStory();
     renderBook();
     applyReaderMode(state.readerMode);
+    renderTextCompletion();
     renderNextChapter();
-    updateAt(0);
+    if (audioAvailable) updateAt(0);
+    else state.sceneNodes[0]?.classList.add("active");
   }
 
   function chapterProgressKey() {
@@ -658,7 +760,7 @@
     try {
       const target = findReading(slug);
       if (isChapterLocked(target)) {
-        showToast(`Спочатку дослухайте главу ${two(target.number - 1)} до 90%`);
+        showToast(lockedChapterMessage(target).short);
         return;
       }
       cancelPendingWordTap();
@@ -680,6 +782,7 @@
   }
 
   function playFrom(start) {
+    if (!hasAudio(state.chapter)) return;
     const { audio } = refs();
     cancelPendingWordTap();
     cancelPhrasePreview();
@@ -697,6 +800,7 @@
   }
 
   function playPhrase(segment) {
+    if (!hasAudio(state.chapter)) return;
     const { audio, player, play } = refs();
     cancelPhrasePreview();
     const playbackId = state.phrasePlaybackId;
@@ -739,6 +843,7 @@
   }
 
   function updateAt(time) {
+    if (!hasAudio(state.chapter)) return;
     const { audio, seek } = refs();
     const duration = Number.isFinite(audio.duration) ? audio.duration : state.chapter.duration;
     seek.value = String(Math.min(time, duration || 1));
@@ -1013,6 +1118,7 @@
       event.currentTarget.classList.toggle("active", state.autoScroll);
     });
     play.addEventListener("click", () => {
+      if (!hasAudio(state.chapter)) return;
       cancelPendingWordTap();
       if (state.phraseEnd !== null) {
         cancelPhrasePreview();
@@ -1024,12 +1130,14 @@
       audio.paused ? audio.play().catch(() => {}) : audio.pause();
     });
     document.querySelector("#speed-button").addEventListener("click", (event) => {
+      if (!hasAudio(state.chapter)) return;
       const index = speeds.indexOf(state.speed);
       state.speed = speeds[(index + 1) % speeds.length];
       audio.playbackRate = state.speed;
       event.currentTarget.textContent = `${state.speed}×`;
     });
     seek.addEventListener("input", (event) => {
+      if (!hasAudio(state.chapter)) return;
       cancelPendingWordTap();
       cancelPhrasePreview(true);
       audio.currentTime = Number(event.currentTarget.value);
@@ -1066,6 +1174,7 @@
         fontButton.setAttribute("aria-expanded", "false");
       }
       if (event.code === "Space" && !["INPUT", "BUTTON"].includes(document.activeElement?.tagName)) {
+        if (!hasAudio(state.chapter)) return;
         event.preventDefault();
         if (state.phraseEnd !== null) {
           cancelPhrasePreview();
@@ -1106,7 +1215,7 @@
         showContents(false);
         if (initial && isChapterLocked(initial)) {
           history.replaceState(null, "", "#contents");
-          showToast(`Спочатку дослухайте главу ${two(initial.number - 1)} до 90%`);
+          showToast(lockedChapterMessage(initial).short);
         }
       }
 
@@ -1115,7 +1224,7 @@
         if (target && !isChapterLocked(target)) loadChapter(target.slug, false);
         else if (target) {
           showContents(false);
-          showToast(`Спочатку дослухайте главу ${two(target.number - 1)} до 90%`);
+          showToast(lockedChapterMessage(target).short);
         }
         else showContents(false);
       });
